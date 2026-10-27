@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* Thème sombre provisoire — à remplacer par la charte TNF */
+:root {
+  --rail: #08080a;
+  --sidebar: #111114;
+  --main: #17171b;
+  --elevated: #1e1e23;
+  --hover: #26262d;
+  --line: #2a2a32;
+  --fg: #ececf1;
+  --muted: #a1a1ad;
+  --faint: #6c6c78;
+  --accent: #d4ff3a;
+  --accent-fg: #0b0b0d;
+  --danger: #ff5c5c;
+  --online: #3ddc84;
+  --idle: #f5b83d;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-rail: var(--rail);
+  --color-sidebar: var(--sidebar);
+  --color-main: var(--main);
+  --color-elevated: var(--elevated);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-online: var(--online);
+  --color-idle: var(--idle);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--main);
+  color: var(--fg);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
