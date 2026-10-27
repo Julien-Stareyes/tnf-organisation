@@ -4,7 +4,9 @@ export const MESSAGE_PAGE_SIZE = 50;
 
 export const ATTACHMENT_COLUMNS = "id, message_id, channel_id, storage_path, name, mime, size, width, height";
 
-export const MESSAGE_COLUMNS = `id, channel_id, author_id, content, created_at, edited_at, author:profiles(display_name, avatar_url), attachments(${ATTACHMENT_COLUMNS})`;
+// Clés étrangères nommées : d'autres tables (notifications, réactions…) relient aussi messages et profils,
+// l'API exige donc qu'on précise le lien à suivre.
+export const MESSAGE_COLUMNS = `id, channel_id, author_id, content, created_at, edited_at, author:profiles!messages_author_id_fkey(display_name, avatar_url), attachments!attachments_message_id_fkey(${ATTACHMENT_COLUMNS})`;
 
 export const ATTACHMENTS_BUCKET = "attachments";
 export const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;

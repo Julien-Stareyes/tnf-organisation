@@ -62,7 +62,7 @@ export async function searchServer(serverId: string, rawQuery: string): Promise<
     supabase
       .from("messages")
       .select(
-        "id, content, created_at, channel_id, author:profiles(display_name, avatar_url), channel:channels!inner(name, server_id, project_id)",
+        "id, content, created_at, channel_id, author:profiles!messages_author_id_fkey(display_name, avatar_url), channel:channels!messages_channel_id_fkey!inner(name, server_id, project_id)",
       )
       .eq("channel.server_id", serverId)
       .textSearch("search", query, { config: "french" })
