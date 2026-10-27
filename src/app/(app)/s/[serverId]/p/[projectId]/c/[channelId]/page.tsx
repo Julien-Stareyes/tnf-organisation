@@ -8,6 +8,7 @@ import {
   getChannel,
   getChannelOverwrites,
   getMyPermissions,
+  getMyProjectRole,
   getProject,
   getProjectMemberGroups,
   getProjectMembers,
@@ -31,9 +32,10 @@ export default async function ProjectChannelPage({
   if (!server || !project || !channel || channel.project_id !== project.id) notFound();
 
   const basePath = `/s/${server.id}/p/${project.id}`;
-  const [permissions, memberGroups] = await Promise.all([
+  const [permissions, memberGroups, myProjectRole] = await Promise.all([
     getMyPermissions({ serverId: server.id, channelId: channel.id }),
     getProjectMemberGroups(project.id),
+    getMyProjectRole(project.id),
   ]);
   const canManage = hasPermission(permissions, Permission.MANAGE_CHANNELS);
   const manageData = canManage
@@ -51,7 +53,7 @@ export default async function ProjectChannelPage({
         <ChannelHeader
           crumbs={[{ label: server.name, href: `/s/${server.id}` }, { label: project.name }]}
           channel={channel}
-          project={{ basePath, active: "chat" }}
+          project={{ basePath, active: "chat", showBoards: myProjectRole !== "client" }}
           actions={
             manageData && (
               <>

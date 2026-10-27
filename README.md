@@ -37,6 +37,8 @@ src/lib/permissions.ts bits de permissions (miroir de private.perm())
 src/lib/data.ts        lectures côté serveur, filtrées par la RLS
 src/app/(auth)/        connexion (mot de passe, lien magique)
 src/app/(app)/s/[serverId]/(home)/            salons du serveur
+src/app/(app)/s/[serverId]/p/[projectId]/board        kanban (Tâches)
+src/app/(app)/s/[serverId]/p/[projectId]/whiteboard   tableau blanc Excalidraw
 src/app/(app)/s/[serverId]/p/[projectId]/     projet : salons, Miro, Trello
 ```
 
@@ -53,5 +55,6 @@ Les invités (`guest`, ex. clients) ne voient jamais les salons du serveur, seul
 - [x] Phase 0 — socle : schéma, permissions, RLS, auth, navigation serveur → projet → salon
 - [x] Phase 1 — chat temps réel, création serveurs/projets/salons, invitations par mail, rôles
 - [x] Phase 2 — exceptions de permissions par salon, salons privés, visibilité clients, éditeur de rôles, journal d'audit
-- [ ] Phase 3 — aperçu Trello via API (les liens Miro / Trello sont déjà réglables par projet)
+- [x] Phase 3 — outils maison par projet : kanban « Tâches » (remplace Trello) et tableau blanc
+  collaboratif « Tableau » basé sur Excalidraw (open source, MIT — remplace Miro)
 - [ ] Phase 4 — mentions, notifications, recherche, fils, pièces jointes

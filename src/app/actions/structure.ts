@@ -150,42 +150,19 @@ export async function createProject(_: FormState, formData: FormData): Promise<F
   return done(`/s/${data.server_id}/p/${data.id}`);
 }
 
-/** Accepte l'URL complète d'un board Trello ou son identifiant. */
-function trelloBoardId(input: string | null) {
-  if (!input) return null;
-  const match = input.match(/trello\.com\/b\/([A-Za-z0-9]+)/);
-  return match ? match[1] : input;
-}
-
 const projectUpdateSchema = z.object({
   id: uuid,
   ...projectFields,
   status: z.enum(["active", "delivered", "archived"]),
-  miro_board_url: optionalText(500).pipe(
-    z
-      .string()
-      .regex(/^https:\/\/miro\.com\/app\/board\//, "L'URL Miro doit ressembler à https://miro.com/app/board/…")
-      .nullable(),
-  ),
-  trello_board: optionalText(500).pipe(
-    z
-      .string()
-      .regex(/^(https:\/\/trello\.com\/b\/[A-Za-z0-9]+|[A-Za-z0-9]+)/, "Colle l'URL du board Trello (https://trello.com/b/…).")
-      .nullable(),
-  ),
 });
 
 export async function updateProject(_: FormState, formData: FormData): Promise<FormState> {
   const parsed = parse(projectUpdateSchema, formData);
   if (!parsed.success) return invalid(parsed);
 
-  const { id, trello_board, ...values } = parsed.data;
+  const { id, ...values } = parsed.data;
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("projects")
-    .update({ ...values, trello_board_id: trelloBoardId(trello_board) })
-    .eq("id", id)
-    .select("id");
+  const { data, error } = await supabase.from("projects").update(values).eq("id", id).select("id");
   if (error) return dbError(error);
   if (!data.length) return { error: DENIED };
   return done();

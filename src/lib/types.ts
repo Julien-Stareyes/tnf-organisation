@@ -33,8 +33,6 @@ export type Project = ProjectSummary & {
   server_id: string;
   client_logo_url: string | null;
   lead_id: string | null;
-  miro_board_url: string | null;
-  trello_board_id: string | null;
 };
 
 export type Category = {

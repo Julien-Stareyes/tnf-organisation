@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient, hasAdminKey } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/utils";
 import { MESSAGE_COLUMNS, MESSAGE_PAGE_SIZE, type ChatMessage } from "@/lib/chat";
+import { CARD_COLUMNS, type BoardCard, type BoardColumn, type BoardLabel } from "@/lib/board";
 import type {
   AuditEntry,
   ChannelOverwrite,
@@ -83,7 +84,7 @@ export const getProject = cache(async (projectId: string) => {
   const { data } = await supabase
     .from("projects")
     .select(
-      "id, server_id, name, client_name, client_logo_url, color, status, position, lead_id, miro_board_url, trello_board_id",
+      "id, server_id, name, client_name, client_logo_url, color, status, position, lead_id",
     )
     .eq("id", projectId)
     .maybeSingle();
@@ -350,6 +351,40 @@ export async function getAuditLog(serverId: string, limit = 100): Promise<AuditE
     changes: row.changes as AuditEntry["changes"],
     created_at: row.created_at as string,
   }));
+}
+
+// ─── Kanban & tableau blanc ─────────────────────────────────────────────────
+
+export const getMyProjectRole = cache(async (projectId: string) => {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("project_members")
+    .select("project_role")
+    .eq("project_id", projectId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return (data?.project_role ?? null) as ProjectRole | null;
+});
+
+export async function getBoard(projectId: string) {
+  const supabase = await createClient();
+  const [{ data: columns }, { data: cards }, { data: labels }] = await Promise.all([
+    supabase.from("board_columns").select("id, project_id, name, color, position").eq("project_id", projectId).order("position"),
+    supabase.from("board_cards").select(CARD_COLUMNS).eq("project_id", projectId).order("position"),
+    supabase.from("board_labels").select("id, project_id, name, color").eq("project_id", projectId).order("name"),
+  ]);
+  return {
+    columns: (columns ?? []) as BoardColumn[],
+    cards: (cards ?? []) as BoardCard[],
+    labels: (labels ?? []) as BoardLabel[],
+  };
+}
+
+export async function getWhiteboardElements(projectId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase.from("whiteboards").select("elements").eq("project_id", projectId).maybeSingle();
+  return (data?.elements ?? []) as unknown[];
 }
 
 function groupByPresence(members: Member[]): MemberGroup[] {

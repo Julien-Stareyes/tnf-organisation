@@ -80,21 +80,6 @@ export function ProjectSettingsDialog({ project }: { project: Project }) {
               </Select>
             </Field>
           </div>
-          <Field label="Board Miro" hint="URL du board, ex. https://miro.com/app/board/uXjV…/">
-            <TextInput
-              name="miro_board_url"
-              type="url"
-              defaultValue={project.miro_board_url ?? ""}
-              placeholder="https://miro.com/app/board/…"
-            />
-          </Field>
-          <Field label="Board Trello" hint="URL du board, ex. https://trello.com/b/AbCd1234/…">
-            <TextInput
-              name="trello_board"
-              defaultValue={project.trello_board_id ? `https://trello.com/b/${project.trello_board_id}` : ""}
-              placeholder="https://trello.com/b/…"
-            />
-          </Field>
           <FormError state={state} />
           <FormActions onCancel={() => setOpen(false)} submitLabel="Enregistrer" />
         </form>

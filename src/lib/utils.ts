@@ -24,9 +24,3 @@ export function isUuid(value: string) {
 export function safeNext(next: string | null | undefined) {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 }
-
-/** https://miro.com/app/board/uXjVK.../ → URL d'intégration Live Embed */
-export function miroEmbedUrl(boardUrl: string) {
-  const match = boardUrl.match(/miro\.com\/app\/board\/([^/?#]+)/);
-  return match ? `https://miro.com/app/live-embed/${match[1]}/` : null;
-}
