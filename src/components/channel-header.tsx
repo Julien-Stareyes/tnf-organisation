@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ChevronRight, Hash, KanbanSquare, Megaphone, MessagesSquare, PenTool } from "lucide-react";
+import { ChevronRight, Clapperboard, Hash, KanbanSquare, Megaphone, MessagesSquare, PenTool } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChannelType } from "@/lib/types";
 
 export type Crumb = { label: string; href?: string };
-export type ProjectTab = "chat" | "board" | "whiteboard";
+export type ProjectTab = "chat" | "board" | "whiteboard" | "reviews";
 
 export function ChannelHeader({
   crumbs,
@@ -15,8 +15,8 @@ export function ChannelHeader({
 }: {
   crumbs: Crumb[];
   channel?: { name: string; type: ChannelType; topic: string | null };
-  /** showBoards : faux pour les clients (pas d'accès aux tâches ni au tableau) */
-  project?: { basePath: string; active: ProjectTab; showBoards?: boolean };
+  /** isClient : les clients n'ont que le chat et les revues (pas les tâches ni le tableau) */
+  project?: { basePath: string; active: ProjectTab; isClient?: boolean };
   actions?: React.ReactNode;
 }) {
   const ChannelIcon = channel?.type === "announcement" ? Megaphone : Hash;
@@ -53,22 +53,23 @@ export function ChannelHeader({
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {actions}
-        {project && project.showBoards !== false && <ProjectTabs basePath={project.basePath} active={project.active} />}
+        {project && <ProjectTabs basePath={project.basePath} active={project.active} isClient={project.isClient} />}
       </div>
     </header>
   );
 }
 
-const TABS: { key: ProjectTab; label: string; icon: LucideIcon; path: string }[] = [
+const TABS: { key: ProjectTab; label: string; icon: LucideIcon; path: string; team?: boolean }[] = [
   { key: "chat", label: "Chat", icon: MessagesSquare, path: "" },
-  { key: "board", label: "Tâches", icon: KanbanSquare, path: "/board" },
-  { key: "whiteboard", label: "Tableau", icon: PenTool, path: "/whiteboard" },
+  { key: "board", label: "Tâches", icon: KanbanSquare, path: "/board", team: true },
+  { key: "whiteboard", label: "Tableau", icon: PenTool, path: "/whiteboard", team: true },
+  { key: "reviews", label: "Revues", icon: Clapperboard, path: "/reviews" },
 ];
 
-function ProjectTabs({ basePath, active }: { basePath: string; active: ProjectTab }) {
+function ProjectTabs({ basePath, active, isClient }: { basePath: string; active: ProjectTab; isClient?: boolean }) {
   return (
     <div role="tablist" className="flex items-center gap-1 rounded-lg bg-rail p-1">
-      {TABS.map(({ key, label, icon: Icon, path }) => (
+      {TABS.filter((tab) => !(isClient && tab.team)).map(({ key, label, icon: Icon, path }) => (
         <Link
           key={key}
           role="tab"

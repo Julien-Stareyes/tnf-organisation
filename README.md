@@ -59,4 +59,12 @@ Les invités (`guest`, ex. clients) ne voient jamais les salons du serveur, seul
   collaboratif « Tableau » basé sur Excalidraw (open source, MIT — remplace Miro)
 - [x] Phase 4 — mentions @ (et @everyone), notifications temps réel, pièces jointes (images, vidéos,
   fichiers jusqu'à 50 Mo), recherche plein texte (Ctrl+K)
-- [ ] Ensuite — fils de discussion, réactions, messages non lus par salon, revue vidéo frame par frame
+- [x] Revues — rendus vidéo/image versionnés, lecteur image par image, commentaires horodatés,
+  annotations dessinées, statut (en revue / corrections / approuvé), ouvert aux clients
+- [ ] Ensuite — fils de discussion, réactions, messages non lus par salon
+
+### Taille des rendus
+
+Le plan gratuit de Supabase limite chaque fichier à 50 Mo. En plan Pro, relever la limite dans
+Storage → Settings, puis indiquer la nouvelle valeur dans `.env.local` :
+`NEXT_PUBLIC_MAX_REVIEW_UPLOAD_MB=500`. Pour la vidéo, le MP4 (H.264) est lu par tous les navigateurs.

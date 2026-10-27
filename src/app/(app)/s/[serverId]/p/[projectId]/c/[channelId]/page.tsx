@@ -55,7 +55,7 @@ export default async function ProjectChannelPage({
         <ChannelHeader
           crumbs={[{ label: server.name, href: `/s/${server.id}` }, { label: project.name }]}
           channel={channel}
-          project={{ basePath, active: "chat", showBoards: myProjectRole !== "client" }}
+          project={{ basePath, active: "chat", isClient: myProjectRole === "client" }}
           actions={
             manageData && (
               <>

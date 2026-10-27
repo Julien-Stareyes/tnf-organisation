@@ -5,6 +5,15 @@ import { createAdminClient, hasAdminKey } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/utils";
 import { MESSAGE_COLUMNS, MESSAGE_PAGE_SIZE, type ChatMessage } from "@/lib/chat";
 import { CARD_COLUMNS, type BoardCard, type BoardColumn, type BoardLabel } from "@/lib/board";
+import {
+  COMMENT_COLUMNS,
+  isImage,
+  REVIEWS_BUCKET,
+  VERSION_COLUMNS,
+  type ReviewAsset,
+  type ReviewComment,
+  type ReviewVersion,
+} from "@/lib/reviews";
 import type {
   AuditEntry,
   ChannelOverwrite,
@@ -424,6 +433,81 @@ export async function getWhiteboardElements(projectId: string) {
   const supabase = await createClient();
   const { data } = await supabase.from("whiteboards").select("elements").eq("project_id", projectId).maybeSingle();
   return (data?.elements ?? []) as unknown[];
+}
+
+// ─── Revue des rendus ───────────────────────────────────────────────────────
+
+const SIGNED_URL_TTL = 6 * 3600;
+
+export async function getReviewAssets(projectId: string) {
+  const supabase = await createClient();
+  const [{ data: assets }, { data: versions }, { data: comments }] = await Promise.all([
+    supabase
+      .from("review_assets")
+      .select("id, project_id, title, status, created_by, updated_at")
+      .eq("project_id", projectId)
+      .order("updated_at", { ascending: false }),
+    supabase.from("review_versions").select(VERSION_COLUMNS).eq("project_id", projectId).order("version", { ascending: false }),
+    supabase.from("review_comments").select("asset_id").eq("project_id", projectId).is("resolved_at", null),
+  ]);
+  const openComments = new Map<string, number>();
+  (comments ?? []).forEach((c) => openComments.set(c.asset_id, (openComments.get(c.asset_id) ?? 0) + 1));
+  const allVersions = (versions ?? []) as ReviewVersion[];
+  const latest = new Map<string, ReviewVersion>();
+  allVersions.forEach((v) => !latest.has(v.asset_id) && latest.set(v.asset_id, v));
+
+  const thumbPaths = [...latest.values()].map((v) => v.thumbnail_path ?? (isImage(v.mime) ? v.storage_path : null));
+  const signed = await signReviewPaths(thumbPaths.filter(Boolean) as string[]);
+
+  // Un rendu sans version (envoi interrompu) n'a rien à afficher
+  return ((assets ?? []) as ReviewAsset[]).filter((asset) => latest.has(asset.id)).map((asset) => {
+    const version = latest.get(asset.id) ?? null;
+    const thumb = version ? (version.thumbnail_path ?? (isImage(version.mime) ? version.storage_path : null)) : null;
+    return {
+      asset,
+      version,
+      versionCount: allVersions.filter((v) => v.asset_id === asset.id).length,
+      thumbnailUrl: thumb ? (signed.get(thumb) ?? null) : null,
+      openComments: openComments.get(asset.id) ?? 0,
+    };
+  });
+}
+
+export async function getReviewAsset(assetId: string) {
+  if (!isUuid(assetId)) return null;
+  const supabase = await createClient();
+  const [{ data: asset }, { data: versions }] = await Promise.all([
+    supabase.from("review_assets").select("id, project_id, title, status, created_by, updated_at").eq("id", assetId).maybeSingle(),
+    supabase.from("review_versions").select(VERSION_COLUMNS).eq("asset_id", assetId).order("version", { ascending: false }),
+  ]);
+  if (!asset) return null;
+  return { asset: asset as ReviewAsset, versions: (versions ?? []) as ReviewVersion[] };
+}
+
+export async function getReviewComments(versionId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("review_comments")
+    .select(COMMENT_COLUMNS)
+    .eq("version_id", versionId)
+    .order("created_at");
+  return (data ?? []) as ReviewComment[];
+}
+
+export async function getProfilesByIds(ids: string[]) {
+  const unique = [...new Set(ids)].filter(isUuid);
+  if (!unique.length) return [] as { id: string; display_name: string; avatar_url: string | null }[];
+  const supabase = await createClient();
+  const { data } = await supabase.from("profiles").select("id, display_name, avatar_url").in("id", unique);
+  return (data ?? []) as { id: string; display_name: string; avatar_url: string | null }[];
+}
+
+/** URLs signées (6 h) : la lecture respecte les règles d'accès du bucket "reviews" */
+export async function signReviewPaths(paths: string[]) {
+  if (!paths.length) return new Map<string, string>();
+  const supabase = await createClient();
+  const { data } = await supabase.storage.from(REVIEWS_BUCKET).createSignedUrls(paths, SIGNED_URL_TTL);
+  return new Map((data ?? []).flatMap((d) => (d.path && d.signedUrl ? [[d.path, d.signedUrl] as const] : [])));
 }
 
 function groupByPresence(members: Member[]): MemberGroup[] {

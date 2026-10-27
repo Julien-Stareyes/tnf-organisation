@@ -2,19 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, Bell, BellRing, CheckCheck, KanbanSquare, Megaphone } from "lucide-react";
+import { AtSign, Bell, BellRing, CheckCheck, Clapperboard, KanbanSquare, Megaphone } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type NotificationRow = {
   id: string;
-  type: "mention" | "everyone" | "card_assigned";
+  type: "mention" | "everyone" | "card_assigned" | "review_comment";
   server_id: string | null;
   project_id: string | null;
   channel_id: string | null;
   message_id: string | null;
   card_id: string | null;
+  review_asset_id: string | null;
+  review_comment_id: string | null;
   excerpt: string;
   created_at: string;
   read_at: string | null;
@@ -24,12 +26,15 @@ type NotificationRow = {
 };
 
 const COLUMNS =
-  "id, type, server_id, project_id, channel_id, message_id, card_id, excerpt, created_at, read_at, actor:profiles!notifications_actor_id_fkey(display_name, avatar_url), channel:channels(name), project:projects(name)";
+  "id, type, server_id, project_id, channel_id, message_id, card_id, review_asset_id, review_comment_id, excerpt, created_at, read_at, actor:profiles!notifications_actor_id_fkey(display_name, avatar_url), channel:channels!notifications_channel_id_fkey(name), project:projects!notifications_project_id_fkey(name)";
 
 function linkFor(n: NotificationRow) {
   if (!n.server_id) return null;
   const base = n.project_id ? `/s/${n.server_id}/p/${n.project_id}` : `/s/${n.server_id}`;
   if (n.type === "card_assigned" && n.card_id) return `${base}/board?card=${n.card_id}`;
+  if (n.type === "review_comment" && n.review_asset_id) {
+    return `${base}/reviews/${n.review_asset_id}${n.review_comment_id ? `?c=${n.review_comment_id}` : ""}`;
+  }
   if (n.channel_id) return `${base}/c/${n.channel_id}${n.message_id ? `?m=${n.message_id}` : ""}`;
   return base;
 }
@@ -38,6 +43,7 @@ function describe(n: NotificationRow) {
   const actor = n.actor?.display_name ?? "Quelqu'un";
   const where = [n.project?.name, n.channel ? `#${n.channel.name}` : null].filter(Boolean).join(" › ");
   if (n.type === "card_assigned") return { title: `${actor} t'a assigné une carte`, where: n.project?.name ?? "" };
+  if (n.type === "review_comment") return { title: `${actor} a commenté un rendu`, where: n.project?.name ?? "" };
   if (n.type === "everyone") return { title: `${actor} a mentionné @everyone`, where };
   return { title: `${actor} t'a mentionné`, where };
 }
@@ -176,7 +182,14 @@ export function NotificationBell({ meId }: { meId: string }) {
             )}
             {items.map((n) => {
               const { title, where } = describe(n);
-              const Icon = n.type === "card_assigned" ? KanbanSquare : n.type === "everyone" ? Megaphone : AtSign;
+              const Icon =
+                n.type === "card_assigned"
+                  ? KanbanSquare
+                  : n.type === "review_comment"
+                    ? Clapperboard
+                    : n.type === "everyone"
+                      ? Megaphone
+                      : AtSign;
               return (
                 <li key={n.id}>
                   <button
