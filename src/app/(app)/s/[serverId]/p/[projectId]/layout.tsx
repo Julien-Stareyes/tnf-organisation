@@ -5,6 +5,7 @@ import { ProjectSettingsDialog } from "@/components/dialogs/project-dialogs";
 import { ChannelTree } from "@/components/sidebar/channel-tree";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { ProjectMembersDialog } from "@/components/dialogs/member-dialogs";
+import { SearchDialog } from "@/components/search/search-dialog";
 import { getMyPermissions, getOrgMembers, getProject, getProjectMembers, getProjectTree, getServer } from "@/lib/data";
 import { hasPermission, Permission } from "@/lib/permissions";
 
@@ -44,6 +45,7 @@ export default async function ProjectLayout({
                 style={{ backgroundColor: project.color ?? "var(--faint)" }}
               />
               <h1 className="min-w-0 flex-1 truncate font-semibold">{project.name}</h1>
+              <SearchDialog serverId={server.id} serverName={server.name} />
               {membersData && (
                 <ProjectMembersDialog projectId={project.id} members={membersData[0]} orgMembers={membersData[1]} />
               )}

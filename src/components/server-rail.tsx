@@ -10,10 +10,12 @@ export function ServerRail({
   servers,
   createServer,
   showAdmin,
+  notifications,
 }: {
   servers: ServerSummary[];
   createServer: React.ReactNode;
   showAdmin: boolean;
+  notifications: React.ReactNode;
 }) {
   const params = useParams<{ serverId?: string }>();
   const pathname = usePathname();
@@ -27,6 +29,7 @@ export function ServerRail({
       >
         TNF
       </Link>
+      {notifications}
       {showAdmin && (
         <Link
           href="/admin"

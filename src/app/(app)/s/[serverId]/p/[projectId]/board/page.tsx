@@ -16,10 +16,12 @@ export const metadata = { title: "Tâches · Organisation TNF" };
 
 export default async function ProjectBoardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ serverId: string; projectId: string }>;
+  searchParams: Promise<{ card?: string }>;
 }) {
-  const { serverId, projectId } = await params;
+  const [{ serverId, projectId }, { card: openCardId }] = await Promise.all([params, searchParams]);
   const [server, project] = await Promise.all([getServer(serverId), getProject(projectId)]);
   if (!server || !project || project.server_id !== server.id) notFound();
   // Les clients n'ont pas accès au kanban interne
@@ -39,6 +41,8 @@ export default async function ProjectBoardPage({
         project={{ basePath: `/s/${server.id}/p/${project.id}`, active: "board" }}
       />
       <KanbanBoard
+        key={openCardId ?? "board"}
+        initialOpenCardId={openCardId}
         projectId={project.id}
         initialColumns={board.columns}
         initialCards={board.cards}

@@ -57,4 +57,6 @@ Les invités (`guest`, ex. clients) ne voient jamais les salons du serveur, seul
 - [x] Phase 2 — exceptions de permissions par salon, salons privés, visibilité clients, éditeur de rôles, journal d'audit
 - [x] Phase 3 — outils maison par projet : kanban « Tâches » (remplace Trello) et tableau blanc
   collaboratif « Tableau » basé sur Excalidraw (open source, MIT — remplace Miro)
-- [ ] Phase 4 — mentions, notifications, recherche, fils, pièces jointes
+- [x] Phase 4 — mentions @ (et @everyone), notifications temps réel, pièces jointes (images, vidéos,
+  fichiers jusqu'à 50 Mo), recherche plein texte (Ctrl+K)
+- [ ] Ensuite — fils de discussion, réactions, messages non lus par salon, revue vidéo frame par frame

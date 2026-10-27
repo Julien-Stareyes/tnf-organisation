@@ -18,10 +18,12 @@ import { hasPermission, Permission } from "@/lib/permissions";
 
 export default async function ServerChannelPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ serverId: string; channelId: string }>;
+  searchParams: Promise<{ m?: string }>;
 }) {
-  const { serverId, channelId } = await params;
+  const [{ serverId, channelId }, { m: focusMessageId }] = await Promise.all([params, searchParams]);
   const [server, channel] = await Promise.all([getServer(serverId), getChannel(channelId)]);
   // Le salon doit appartenir à ce serveur et ne pas être un salon de projet
   if (!server || !channel || channel.server_id !== server.id || channel.project_id) notFound();
@@ -65,7 +67,12 @@ export default async function ServerChannelPage({
             )
           }
         />
-        <ChannelChat channel={channel} permissions={permissions} />
+        <ChannelChat
+          channel={channel}
+          permissions={permissions}
+          members={memberGroups.flatMap((group) => group.members)}
+          focusMessageId={focusMessageId}
+        />
       </div>
       <MemberPanel groups={memberGroups} />
     </>

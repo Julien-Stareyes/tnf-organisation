@@ -7,6 +7,7 @@ import { ChannelTree } from "@/components/sidebar/channel-tree";
 import { ProjectLink } from "@/components/sidebar/nav-links";
 import { Sidebar, SidebarSection } from "@/components/sidebar/sidebar";
 import { ServerMembersDialog } from "@/components/dialogs/member-dialogs";
+import { SearchDialog } from "@/components/search/search-dialog";
 import {
   getMe,
   getMyPermissions,
@@ -46,6 +47,7 @@ export default async function ServerLayout({
         header={
           <div className="flex items-center gap-2 px-4 py-3">
             <h1 className="min-w-0 flex-1 truncate font-semibold">{server.name}</h1>
+            <SearchDialog serverId={server.id} serverName={server.name} />
             {membersData && (
               <ServerMembersDialog
                 serverId={server.id}

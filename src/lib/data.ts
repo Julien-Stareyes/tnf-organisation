@@ -148,6 +148,45 @@ export async function getRecentMessages(channelId: string) {
   return {
     messages: rows.slice(0, MESSAGE_PAGE_SIZE).reverse(),
     hasMore: rows.length > MESSAGE_PAGE_SIZE,
+    hasNewer: false,
+  };
+}
+
+/** Messages autour d'un message précis (lien depuis la recherche ou une notification) */
+export async function getMessagesAround(channelId: string, messageId: string) {
+  if (!isUuid(messageId)) return null;
+  const supabase = await createClient();
+  const { data: target } = await supabase
+    .from("messages")
+    .select("created_at")
+    .eq("id", messageId)
+    .eq("channel_id", channelId)
+    .maybeSingle();
+  if (!target) return null;
+
+  const half = MESSAGE_PAGE_SIZE / 2;
+  const [{ data: before }, { data: after }] = await Promise.all([
+    supabase
+      .from("messages")
+      .select(MESSAGE_COLUMNS)
+      .eq("channel_id", channelId)
+      .lte("created_at", target.created_at)
+      .order("created_at", { ascending: false })
+      .limit(half + 1),
+    supabase
+      .from("messages")
+      .select(MESSAGE_COLUMNS)
+      .eq("channel_id", channelId)
+      .gt("created_at", target.created_at)
+      .order("created_at", { ascending: true })
+      .limit(half + 1),
+  ]);
+  const older = (before ?? []) as unknown as ChatMessage[];
+  const newer = (after ?? []) as unknown as ChatMessage[];
+  return {
+    messages: [...older.slice(0, half).reverse(), ...newer.slice(0, half)],
+    hasMore: older.length > half,
+    hasNewer: newer.length > half,
   };
 }
 

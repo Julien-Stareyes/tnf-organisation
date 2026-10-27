@@ -20,10 +20,12 @@ import { hasPermission, Permission } from "@/lib/permissions";
 
 export default async function ProjectChannelPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ serverId: string; projectId: string; channelId: string }>;
+  searchParams: Promise<{ m?: string }>;
 }) {
-  const { serverId, projectId, channelId } = await params;
+  const [{ serverId, projectId, channelId }, { m: focusMessageId }] = await Promise.all([params, searchParams]);
   const [server, project, channel] = await Promise.all([
     getServer(serverId),
     getProject(projectId),
@@ -73,7 +75,12 @@ export default async function ProjectChannelPage({
             )
           }
         />
-        <ChannelChat channel={channel} permissions={permissions} />
+        <ChannelChat
+          channel={channel}
+          permissions={permissions}
+          members={memberGroups.flatMap((group) => group.members)}
+          focusMessageId={focusMessageId}
+        />
       </div>
       <MemberPanel groups={memberGroups} />
     </>

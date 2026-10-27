@@ -47,7 +47,10 @@ export function KanbanBoard({
   members,
   meId,
   canManageColumns,
+  initialOpenCardId,
 }: {
+  /** Carte à ouvrir directement (lien depuis une notification) */
+  initialOpenCardId?: string;
   projectId: string;
   initialColumns: BoardColumn[];
   initialCards: BoardCard[];
@@ -62,7 +65,7 @@ export function KanbanBoard({
   const [labels, setLabels] = useState(initialLabels);
   const [dragItems, setDragItems] = useState<Items | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [openCardId, setOpenCardId] = useState<string | null>(initialOpenCardId ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const sortedColumns = useMemo(() => [...columns].sort(byPosition), [columns]);
