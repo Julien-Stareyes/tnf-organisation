@@ -53,7 +53,7 @@ function ChannelList({ channels, basePath }: { channels: Channel[]; basePath: st
     <ul className="space-y-0.5">
       {channels.map((channel) => (
         <li key={channel.id}>
-          <ChannelLink href={`${basePath}/c/${channel.id}`} name={channel.name} type={channel.type} />
+          <ChannelLink id={channel.id} href={`${basePath}/c/${channel.id}`} name={channel.name} type={channel.type} />
         </li>
       ))}
     </ul>

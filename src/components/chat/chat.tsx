@@ -7,64 +7,28 @@ import { Hash, Loader2, Megaphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { hasPermission, Permission } from "@/lib/permissions";
 import {
-  ATTACHMENT_COLUMNS,
-  ATTACHMENTS_BUCKET,
   formatDay,
   isGroupedWith,
   isSameDay,
   MESSAGE_COLUMNS,
   MESSAGE_PAGE_SIZE,
-  storageSafeName,
   type ChatAttachment,
   type ChatAuthor,
   type ChatMessage,
+  type ChatReaction,
 } from "@/lib/chat";
 import type { Channel, Member } from "@/lib/types";
+import { useUnread } from "@/components/unread/unread-provider";
+import { removeMessageFiles, uploadMessageFiles, useSignedUrls } from "./attachments";
 import { Composer, type Mentionable } from "./composer";
 import { MessageItem } from "./message-item";
+import { toggleReaction, withReaction } from "./message-actions";
+import { ThreadPanel } from "./thread-panel";
 
 type Me = { id: string; display_name: string; avatar_url: string | null };
-type MessageRow = Omit<ChatMessage, "author" | "attachments">;
+type MessageRow = Omit<ChatMessage, "author" | "attachments" | "reactions">;
 
 const TYPING_TTL = 4000;
-
-/** URLs signées (1 h) des fichiers du bucket privé, demandées par lots */
-function useSignedUrls(paths: string[]) {
-  const supabase = useMemo(() => createClient(), []);
-  const [urls, setUrls] = useState<Record<string, string>>({});
-  const requested = useRef(new Set<string>());
-  const key = paths.join("|");
-
-  useEffect(() => {
-    const missing = key.split("|").filter((path) => path && !requested.current.has(path));
-    if (!missing.length) return;
-    missing.forEach((path) => requested.current.add(path));
-    supabase.storage
-      .from(ATTACHMENTS_BUCKET)
-      .createSignedUrls(missing, 3600)
-      .then(({ data }) => {
-        if (!data) return;
-        setUrls((current) => ({
-          ...current,
-          ...Object.fromEntries(
-            data.flatMap((d) => (d.path && d.signedUrl ? [[d.path, d.signedUrl] as const] : [])),
-          ),
-        }));
-      });
-  }, [supabase, key]);
-
-  return urls;
-}
-
-async function imageSize(file: File) {
-  if (!file.type.startsWith("image/")) return { width: null, height: null };
-  try {
-    const bitmap = await createImageBitmap(file);
-    return { width: bitmap.width, height: bitmap.height };
-  } catch {
-    return { width: null, height: null };
-  }
-}
 
 export function Chat({
   channel,
@@ -72,6 +36,8 @@ export function Chat({
   initialHasMore,
   initialHasNewer,
   focusMessageId,
+  threadId,
+  threadFocusId,
   me,
   members,
   permissions,
@@ -82,6 +48,9 @@ export function Chat({
   /** Vrai quand on consulte un ancien message (lien de recherche / notification) */
   initialHasNewer: boolean;
   focusMessageId: string | null;
+  /** Fil ouvert (paramètre ?t= de l'URL) */
+  threadId: string | null;
+  threadFocusId: string | null;
   me: Me;
   members: Member[];
   permissions: number;
@@ -89,6 +58,7 @@ export function Chat({
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const pathname = usePathname();
+  const { setActiveChannel } = useUnread();
   const [messages, setMessages] = useState(initialMessages);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -103,6 +73,7 @@ export function Chat({
   const canSend = hasPermission(permissions, Permission.SEND_MESSAGES);
   const canAttach = hasPermission(permissions, Permission.ATTACH_FILES);
   const canModerate = hasPermission(permissions, Permission.MANAGE_MESSAGES);
+  const canReact = hasPermission(permissions, Permission.ADD_REACTIONS);
   const canMentionEveryone = hasPermission(permissions, Permission.MENTION_EVERYONE);
 
   const names = useMemo(() => {
@@ -116,8 +87,13 @@ export function Chat({
     [members, me.id],
   );
 
-  const paths = useMemo(() => messages.flatMap((m) => m.attachments.map((a) => a.storage_path)), [messages]);
-  const signedUrls = useSignedUrls(paths);
+  const signedUrls = useSignedUrls(useMemo(() => messages.flatMap((m) => m.attachments.map((a) => a.storage_path)), [messages]));
+
+  // Ce salon est affiché : il est lu, et le reste tant qu'on le regarde
+  useEffect(() => {
+    setActiveChannel(channel.id);
+    return () => setActiveChannel(null);
+  }, [channel.id, setActiveChannel]);
 
   useEffect(() => {
     const authors = authorsRef.current;
@@ -130,6 +106,12 @@ export function Chat({
     if (!focusMessageId) return;
     document.getElementById(`msg-${focusMessageId}`)?.scrollIntoView({ block: "center" });
   }, [focusMessageId]);
+
+  const openThread = useCallback(
+    (message: ChatMessage) => router.replace(`${pathname}?t=${message.id}`, { scroll: false }),
+    [router, pathname],
+  );
+  const closeThread = useCallback(() => router.replace(pathname, { scroll: false }), [router, pathname]);
 
   const resolveAuthor = useCallback(
     async (authorId: string) => {
@@ -155,7 +137,7 @@ export function Chat({
           if (!attachments.some((x) => x.id === a.id)) attachments.push(a);
         });
         const next = [...current];
-        next[index] = { ...existing, ...message, author: message.author ?? existing.author, attachments };
+        next[index] = { ...existing, ...message, author: message.author ?? existing.author, attachments, reactions: existing.reactions };
         return next;
       }
       const merged = { ...message, attachments: [...message.attachments, ...pending] };
@@ -166,7 +148,7 @@ export function Chat({
   const addAttachment = useCallback((attachment: ChatAttachment) => {
     setMessages((current) => {
       if (!current.some((m) => m.id === attachment.message_id)) {
-        // Le message n'est pas encore arrivé : on garde la pièce jointe de côté
+        // Message pas encore arrivé (ou réponse de fil) : on garde la pièce jointe de côté
         const list = pendingAttachments.current.get(attachment.message_id) ?? [];
         pendingAttachments.current.set(attachment.message_id, [...list, attachment]);
         return current;
@@ -184,10 +166,11 @@ export function Chat({
     const realtime = supabase
       .channel(`channel:${channel.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter }, async ({ new: row }) => {
-        // En consultation d'anciens messages, on n'ajoute pas les nouveaux après le "trou"
-        if (initialHasNewer) return;
         const message = row as MessageRow;
-        upsert({ ...message, author: await resolveAuthor(message.author_id), attachments: [] });
+        // Réponses de fil : affichées dans le panneau du fil, le compteur du message racine arrive par UPDATE
+        // En consultation d'anciens messages, on n'ajoute pas les nouveaux après le "trou"
+        if (message.thread_id || initialHasNewer) return;
+        upsert({ ...message, author: await resolveAuthor(message.author_id), attachments: [], reactions: [] });
         setTyping((current) => {
           const next = { ...current };
           delete next[message.author_id];
@@ -197,16 +180,32 @@ export function Chat({
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter }, ({ new: row }) => {
         const message = row as MessageRow;
         setMessages((current) =>
-          current.map((m) => (m.id === message.id ? { ...m, content: message.content, edited_at: message.edited_at } : m)),
+          current.map((m) =>
+            m.id === message.id
+              ? {
+                  ...m,
+                  content: message.content,
+                  edited_at: message.edited_at,
+                  thread_count: message.thread_count,
+                  thread_last_at: message.thread_last_at,
+                }
+              : m,
+          ),
         );
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "attachments", filter }, ({ new: row }) => {
         addAttachment(row as ChatAttachment);
       })
-      // Les suppressions ne sont pas filtrables par salon : on ne reçoit que l'id
+      // Suppressions et réactions ne sont pas filtrables par salon : on ignore ce qui ne nous concerne pas
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, ({ old }) => {
         const id = (old as { id?: string }).id;
         if (id) setMessages((current) => current.filter((m) => m.id !== id));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "reactions" }, ({ eventType, new: added, old: removed }) => {
+        const reaction = (eventType === "DELETE" ? removed : added) as ChatReaction & { message_id: string };
+        if (reaction?.message_id) {
+          setMessages((current) => withReaction(current, reaction.message_id, reaction, eventType !== "DELETE"));
+        }
       })
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const { user_id, name } = payload as { user_id: string; name: string };
@@ -243,39 +242,6 @@ export function Chat({
     });
   }, [me.id, me.display_name]);
 
-  const uploadFiles = useCallback(
-    async (messageId: string, files: File[]) => {
-      const results = await Promise.all(
-        files.map(async (file) => {
-          const path = `${channel.id}/${messageId}/${crypto.randomUUID().slice(0, 8)}-${storageSafeName(file.name)}`;
-          const { error: uploadError } = await supabase.storage
-            .from(ATTACHMENTS_BUCKET)
-            .upload(path, file, { contentType: file.type || "application/octet-stream" });
-          if (uploadError) return null;
-          const { width, height } = await imageSize(file);
-          const { data } = await supabase
-            .from("attachments")
-            .insert({
-              message_id: messageId,
-              channel_id: channel.id,
-              storage_path: path,
-              name: file.name.slice(0, 255) || "fichier",
-              mime: file.type || "application/octet-stream",
-              size: file.size,
-              width,
-              height,
-            })
-            .select(ATTACHMENT_COLUMNS)
-            .single();
-          return data as ChatAttachment | null;
-        }),
-      );
-      results.forEach((attachment) => attachment && addAttachment(attachment));
-      if (results.some((r) => !r)) setError("Un ou plusieurs fichiers n'ont pas pu être envoyés.");
-    },
-    [supabase, channel.id, addAttachment],
-  );
-
   const send = useCallback(
     async (content: string, files: File[]) => {
       setError(null);
@@ -293,11 +259,16 @@ export function Chat({
         );
         return false;
       }
-      upsert(data as unknown as ChatMessage);
-      if (files.length) await uploadFiles((data as { id: string }).id, files);
+      const message = data as unknown as ChatMessage;
+      upsert(message);
+      if (files.length) {
+        const results = await uploadMessageFiles(supabase, channel.id, message.id, files);
+        results.forEach((attachment) => attachment && addAttachment(attachment));
+        if (results.some((r) => !r)) setError("Un ou plusieurs fichiers n'ont pas pu être envoyés.");
+      }
       return true;
     },
-    [supabase, channel.id, channel.slowmode_seconds, me.id, upsert, uploadFiles],
+    [supabase, channel.id, channel.slowmode_seconds, me.id, upsert, addAttachment],
   );
 
   const edit = useCallback(
@@ -319,17 +290,29 @@ export function Chat({
 
   const remove = useCallback(
     async (message: ChatMessage) => {
-      if (message.attachments.length) {
-        await supabase.storage.from(ATTACHMENTS_BUCKET).remove(message.attachments.map((a) => a.storage_path));
-      }
+      await removeMessageFiles(supabase, message.attachments);
       const { error: deleteError } = await supabase.from("messages").delete().eq("id", message.id);
       if (deleteError) {
         setError("Le message n'a pas pu être supprimé.");
         return;
       }
       setMessages((current) => current.filter((m) => m.id !== message.id));
+      if (threadId === message.id) closeThread();
     },
-    [supabase],
+    [supabase, threadId, closeThread],
+  );
+
+  const react = useCallback(
+    async (message: ChatMessage, emoji: string) => {
+      const mine = message.reactions.some((r) => r.user_id === me.id && r.emoji === emoji);
+      setMessages((current) => withReaction(current, message.id, { user_id: me.id, emoji }, !mine));
+      const { ok } = await toggleReaction(supabase, message, me.id, emoji);
+      if (!ok) {
+        setMessages((current) => withReaction(current, message.id, { user_id: me.id, emoji }, mine));
+        setError("La réaction n'a pas pu être enregistrée.");
+      }
+    },
+    [supabase, me.id],
   );
 
   const loadOlder = useCallback(async () => {
@@ -340,6 +323,7 @@ export function Chat({
       .from("messages")
       .select(MESSAGE_COLUMNS)
       .eq("channel_id", channel.id)
+      .is("thread_id", null)
       .lt("created_at", oldest.created_at)
       .order("created_at", { ascending: false })
       .limit(MESSAGE_PAGE_SIZE + 1);
@@ -354,118 +338,142 @@ export function Chat({
   const Icon = channel.type === "announcement" ? Megaphone : Hash;
 
   return (
-    <div
-      className="relative flex min-h-0 flex-1 flex-col"
-      onDragOver={(event) => {
-        if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
-        event.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={(event) => {
-        if (event.currentTarget === event.target) setDragging(false);
-      }}
-      onDrop={(event) => {
-        if (!canAttach) return;
-        event.preventDefault();
-        setDragging(false);
-        setDroppedFiles(Array.from(event.dataTransfer.files));
-      }}
-    >
-      {dragging && (
-        <div className="pointer-events-none absolute inset-3 z-20 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-main/80 text-lg font-semibold text-accent">
-          Dépose tes fichiers pour les envoyer dans #{channel.name}
-        </div>
-      )}
-
-      {initialHasNewer && (
-        <button
-          type="button"
-          onClick={() => router.replace(pathname)}
-          className="mx-4 mt-3 rounded-lg bg-elevated px-3 py-2 text-left text-sm text-muted hover:text-fg"
-        >
-          Tu consultes d&apos;anciens messages. <span className="font-semibold text-accent">Revenir aux messages récents →</span>
-        </button>
-      )}
-
-      <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto">
-        <div className="pb-4">
-          {hasMore ? (
-            <div className="flex justify-center py-4">
-              <button
-                type="button"
-                onClick={loadOlder}
-                disabled={loadingOlder}
-                className="flex items-center gap-2 rounded-md bg-elevated px-3 py-1.5 text-sm text-muted hover:text-fg"
-              >
-                {loadingOlder && <Loader2 className="size-4 animate-spin" />}
-                Charger les messages précédents
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2 px-4 pb-4 pt-10">
-              <div className="grid size-16 place-items-center rounded-full bg-elevated">
-                <Icon className="size-8 text-fg" />
-              </div>
-              <h2 className="text-3xl font-bold">Bienvenue dans #{channel.name}</h2>
-              <p className="text-muted">{channel.topic ?? "C'est le tout début de ce salon."}</p>
-            </div>
-          )}
-
-          {messages.map((message, index) => {
-            const previous = messages[index - 1];
-            const newDay = !previous || !isSameDay(previous.created_at, message.created_at);
-            return (
-              <div key={message.id}>
-                {newDay && (
-                  <div className="mx-4 my-4 flex items-center gap-2 text-xs font-semibold text-faint">
-                    <span className="h-px flex-1 bg-line" />
-                    <span suppressHydrationWarning>{formatDay(message.created_at)}</span>
-                    <span className="h-px flex-1 bg-line" />
-                  </div>
-                )}
-                <MessageItem
-                  message={message}
-                  grouped={!newDay && isGroupedWith(previous, message)}
-                  isMine={message.author_id === me.id}
-                  meId={me.id}
-                  focused={message.id === focusMessageId}
-                  canModerate={canModerate}
-                  names={names}
-                  signedUrls={signedUrls}
-                  onEdit={edit}
-                  onDelete={remove}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="px-4 pb-2">
-        {error && <p className="mb-2 text-sm text-danger">{error}</p>}
-        {canSend ? (
-          <Composer
-            placeholder={`Envoyer un message dans #${channel.name}`}
-            mentionables={mentionables}
-            canMentionEveryone={canMentionEveryone}
-            canAttach={canAttach}
-            droppedFiles={droppedFiles}
-            onDroppedFilesTaken={() => setDroppedFiles([])}
-            onSend={send}
-            onTyping={notifyTyping}
-            onError={setError}
-          />
-        ) : (
-          <div className="rounded-lg bg-elevated px-4 py-3 text-sm text-faint">
-            Tu n&apos;as pas la permission d&apos;écrire dans ce salon.
+    <div className="flex min-h-0 min-w-0 flex-1">
+      <div
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+        onDragOver={(event) => {
+          if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget === event.target) setDragging(false);
+        }}
+        onDrop={(event) => {
+          if (!canAttach) return;
+          event.preventDefault();
+          setDragging(false);
+          setDroppedFiles(Array.from(event.dataTransfer.files));
+        }}
+      >
+        {dragging && (
+          <div className="pointer-events-none absolute inset-3 z-20 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-main/80 text-lg font-semibold text-accent">
+            Dépose tes fichiers pour les envoyer dans #{channel.name}
           </div>
         )}
-        <p className="h-5 truncate pt-1 text-xs text-muted" aria-live="polite">
-          {typingNames.length === 1 && `${typingNames[0]} est en train d'écrire…`}
-          {typingNames.length === 2 && `${typingNames[0]} et ${typingNames[1]} écrivent…`}
-          {typingNames.length > 2 && "Plusieurs personnes écrivent…"}
-        </p>
+
+        {initialHasNewer && (
+          <button
+            type="button"
+            onClick={() => router.replace(pathname)}
+            className="mx-4 mt-3 rounded-lg bg-elevated px-3 py-2 text-left text-sm text-muted hover:text-fg"
+          >
+            Tu consultes d&apos;anciens messages.{" "}
+            <span className="font-semibold text-accent">Revenir aux messages récents →</span>
+          </button>
+        )}
+
+        <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto">
+          <div className="pb-4">
+            {hasMore ? (
+              <div className="flex justify-center py-4">
+                <button
+                  type="button"
+                  onClick={loadOlder}
+                  disabled={loadingOlder}
+                  className="flex items-center gap-2 rounded-md bg-elevated px-3 py-1.5 text-sm text-muted hover:text-fg"
+                >
+                  {loadingOlder && <Loader2 className="size-4 animate-spin" />}
+                  Charger les messages précédents
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2 px-4 pb-4 pt-10">
+                <div className="grid size-16 place-items-center rounded-full bg-elevated">
+                  <Icon className="size-8 text-fg" />
+                </div>
+                <h2 className="text-3xl font-bold">Bienvenue dans #{channel.name}</h2>
+                <p className="text-muted">{channel.topic ?? "C'est le tout début de ce salon."}</p>
+              </div>
+            )}
+
+            {messages.map((message, index) => {
+              const previous = messages[index - 1];
+              const newDay = !previous || !isSameDay(previous.created_at, message.created_at);
+              return (
+                <div key={message.id}>
+                  {newDay && (
+                    <div className="mx-4 my-4 flex items-center gap-2 text-xs font-semibold text-faint">
+                      <span className="h-px flex-1 bg-line" />
+                      <span suppressHydrationWarning>{formatDay(message.created_at)}</span>
+                      <span className="h-px flex-1 bg-line" />
+                    </div>
+                  )}
+                  <MessageItem
+                    message={message}
+                    grouped={!newDay && isGroupedWith(previous, message) && !previous.thread_count}
+                    isMine={message.author_id === me.id}
+                    meId={me.id}
+                    focused={message.id === focusMessageId || message.id === threadId}
+                    canModerate={canModerate}
+                    canReact={canReact}
+                    names={names}
+                    signedUrls={signedUrls}
+                    onEdit={edit}
+                    onDelete={remove}
+                    onToggleReaction={react}
+                    onOpenThread={openThread}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="px-4 pb-2">
+          {error && <p className="mb-2 text-sm text-danger">{error}</p>}
+          {canSend ? (
+            <Composer
+              placeholder={`Envoyer un message dans #${channel.name}`}
+              mentionables={mentionables}
+              canMentionEveryone={canMentionEveryone}
+              canAttach={canAttach}
+              droppedFiles={droppedFiles}
+              onDroppedFilesTaken={() => setDroppedFiles([])}
+              onSend={send}
+              onTyping={notifyTyping}
+              onError={setError}
+            />
+          ) : (
+            <div className="rounded-lg bg-elevated px-4 py-3 text-sm text-faint">
+              Tu n&apos;as pas la permission d&apos;écrire dans ce salon.
+            </div>
+          )}
+          <p className="h-5 truncate pt-1 text-xs text-muted" aria-live="polite">
+            {typingNames.length === 1 && `${typingNames[0]} est en train d'écrire…`}
+            {typingNames.length === 2 && `${typingNames[0]} et ${typingNames[1]} écrivent…`}
+            {typingNames.length > 2 && "Plusieurs personnes écrivent…"}
+          </p>
+        </div>
       </div>
+
+      {threadId && (
+        <ThreadPanel
+          key={threadId}
+          rootId={threadId}
+          channel={channel}
+          me={me}
+          names={names}
+          mentionables={mentionables}
+          canSend={canSend}
+          canAttach={canAttach}
+          canModerate={canModerate}
+          canReact={canReact}
+          canMentionEveryone={canMentionEveryone}
+          focusId={threadFocusId}
+          onClose={closeThread}
+        />
+      )}
     </div>
   );
 }

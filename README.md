@@ -61,7 +61,7 @@ Les invités (`guest`, ex. clients) ne voient jamais les salons du serveur, seul
   fichiers jusqu'à 50 Mo), recherche plein texte (Ctrl+K)
 - [x] Revues — rendus vidéo/image versionnés, lecteur image par image, commentaires horodatés,
   annotations dessinées, statut (en revue / corrections / approuvé), ouvert aux clients
-- [ ] Ensuite — fils de discussion, réactions, messages non lus par salon
+- [x] Confort du chat — salons non lus (gras, pastilles, mentions), réactions emoji, fils de discussion
 
 ### Taille des rendus
 

@@ -15,17 +15,19 @@ import {
   getProjectTree,
   getRoleDetails,
   getServer,
+  resolveMessageTarget,
 } from "@/lib/data";
 import { hasPermission, Permission } from "@/lib/permissions";
+import { isUuid } from "@/lib/utils";
 
 export default async function ProjectChannelPage({
   params,
   searchParams,
 }: {
   params: Promise<{ serverId: string; projectId: string; channelId: string }>;
-  searchParams: Promise<{ m?: string }>;
+  searchParams: Promise<{ m?: string; t?: string }>;
 }) {
-  const [{ serverId, projectId, channelId }, { m: focusMessageId }] = await Promise.all([params, searchParams]);
+  const [{ serverId, projectId, channelId }, { m, t }] = await Promise.all([params, searchParams]);
   const [server, project, channel] = await Promise.all([
     getServer(serverId),
     getProject(projectId),
@@ -34,11 +36,13 @@ export default async function ProjectChannelPage({
   if (!server || !project || !channel || channel.project_id !== project.id) notFound();
 
   const basePath = `/s/${server.id}/p/${project.id}`;
-  const [permissions, memberGroups, myProjectRole] = await Promise.all([
+  const [permissions, memberGroups, myProjectRole, target] = await Promise.all([
     getMyPermissions({ serverId: server.id, channelId: channel.id }),
     getProjectMemberGroups(project.id),
     getMyProjectRole(project.id),
+    resolveMessageTarget(channel.id, m),
   ]);
+  const threadId = target.threadId ?? (t && isUuid(t) ? t : undefined);
   const canManage = hasPermission(permissions, Permission.MANAGE_CHANNELS);
   const manageData = canManage
     ? await Promise.all([
@@ -79,10 +83,13 @@ export default async function ProjectChannelPage({
           channel={channel}
           permissions={permissions}
           members={memberGroups.flatMap((group) => group.members)}
-          focusMessageId={focusMessageId}
+          focusMessageId={target.focusId}
+          threadId={threadId}
+          threadFocusId={target.threadFocusId}
         />
       </div>
-      <MemberPanel groups={memberGroups} />
+      {/* Le panneau du fil prend la place de la liste des membres */}
+      {!threadId && <MemberPanel groups={memberGroups} />}
     </>
   );
 }

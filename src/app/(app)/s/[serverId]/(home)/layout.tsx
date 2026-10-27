@@ -89,6 +89,7 @@ export default async function ServerLayout({
               {projects.map((project) => (
                 <li key={project.id}>
                   <ProjectLink
+                    id={project.id}
                     href={`${basePath}/p/${project.id}`}
                     name={project.name}
                     client={project.client_name}

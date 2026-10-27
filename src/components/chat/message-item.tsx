@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Download, FileIcon, Pencil, Trash2 } from "lucide-react";
+import { Download, FileIcon, MessagesSquare, Pencil, Trash2 } from "lucide-react";
+import { EmojiPicker, ReactionBar } from "./reactions";
 import { Avatar } from "@/components/avatar";
 import {
   encodeMentions,
@@ -96,6 +97,26 @@ function AttachmentView({ attachment, url }: { attachment: ChatAttachment; url?:
   );
 }
 
+function ThreadSummary({ message, onOpen }: { message: ChatMessage; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mt-1 flex items-center gap-2 rounded-md border border-line bg-elevated/60 px-2.5 py-1 text-xs hover:border-faint"
+    >
+      <MessagesSquare className="size-3.5 text-accent" />
+      <span className="font-semibold text-accent">
+        {message.thread_count} réponse{message.thread_count > 1 ? "s" : ""}
+      </span>
+      {message.thread_last_at && (
+        <span suppressHydrationWarning className="text-faint">
+          · dernière {formatTimestamp(message.thread_last_at).toLowerCase()}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function MessageItem({
   message,
   grouped,
@@ -103,10 +124,13 @@ export function MessageItem({
   meId,
   focused,
   canModerate,
+  canReact,
   names,
   signedUrls,
   onEdit,
   onDelete,
+  onToggleReaction,
+  onOpenThread,
 }: {
   message: ChatMessage;
   grouped: boolean;
@@ -114,10 +138,14 @@ export function MessageItem({
   meId: string;
   focused: boolean;
   canModerate: boolean;
+  canReact: boolean;
   names: Map<string, string>;
   signedUrls: Record<string, string>;
   onEdit: (id: string, content: string) => Promise<void>;
   onDelete: (message: ChatMessage) => Promise<void>;
+  onToggleReaction: (message: ChatMessage, emoji: string) => void;
+  /** Absent dans un fil (pas de fil dans un fil) */
+  onOpenThread?: (message: ChatMessage) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -196,10 +224,31 @@ export function MessageItem({
             ))}
           </div>
         )}
+
+        <ReactionBar
+          reactions={message.reactions}
+          meId={meId}
+          names={names}
+          canReact={canReact}
+          onToggle={(emoji) => onToggleReaction(message, emoji)}
+        />
+
+        {onOpenThread && message.thread_count > 0 && <ThreadSummary message={message} onOpen={() => onOpenThread(message)} />}
       </div>
 
-      {!editing && (isMine || canModerate) && (
-        <div className="absolute -top-3 right-4 hidden overflow-hidden rounded-md border border-line bg-sidebar shadow-lg group-hover:flex">
+      {!editing && (
+        <div className="absolute -top-3 right-4 hidden rounded-md border border-line bg-sidebar shadow-lg group-hover:flex">
+          {canReact && <EmojiPicker onPick={(emoji) => onToggleReaction(message, emoji)} below />}
+          {onOpenThread && (
+            <button
+              type="button"
+              title="Répondre dans un fil"
+              onClick={() => onOpenThread(message)}
+              className="grid size-8 place-items-center text-muted hover:bg-hover hover:text-fg"
+            >
+              <MessagesSquare className="size-4" />
+            </button>
+          )}
           {isMine && (
             <button
               type="button"
@@ -213,14 +262,19 @@ export function MessageItem({
               <Pencil className="size-4" />
             </button>
           )}
-          <button
-            type="button"
-            title="Supprimer"
-            onClick={() => window.confirm("Supprimer ce message ?") && onDelete(message)}
-            className="grid size-8 place-items-center text-muted hover:bg-hover hover:text-danger"
-          >
-            <Trash2 className="size-4" />
-          </button>
+          {(isMine || canModerate) && (
+            <button
+              type="button"
+              title="Supprimer"
+              onClick={() =>
+                window.confirm(message.thread_count ? "Supprimer ce message et tout son fil ?" : "Supprimer ce message ?") &&
+                onDelete(message)
+              }
+              className="grid size-8 place-items-center text-muted hover:bg-hover hover:text-danger"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          )}
         </div>
       )}
     </div>

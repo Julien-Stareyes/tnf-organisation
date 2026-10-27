@@ -13,7 +13,9 @@ import {
   getServerMemberGroups,
   getServerMembersWithRoles,
   getServerTree,
+  resolveMessageTarget,
 } from "@/lib/data";
+import { isUuid } from "@/lib/utils";
 import { hasPermission, Permission } from "@/lib/permissions";
 
 export default async function ServerChannelPage({
@@ -21,17 +23,19 @@ export default async function ServerChannelPage({
   searchParams,
 }: {
   params: Promise<{ serverId: string; channelId: string }>;
-  searchParams: Promise<{ m?: string }>;
+  searchParams: Promise<{ m?: string; t?: string }>;
 }) {
-  const [{ serverId, channelId }, { m: focusMessageId }] = await Promise.all([params, searchParams]);
+  const [{ serverId, channelId }, { m, t }] = await Promise.all([params, searchParams]);
   const [server, channel] = await Promise.all([getServer(serverId), getChannel(channelId)]);
   // Le salon doit appartenir à ce serveur et ne pas être un salon de projet
   if (!server || !channel || channel.server_id !== server.id || channel.project_id) notFound();
 
-  const [permissions, memberGroups] = await Promise.all([
+  const [permissions, memberGroups, target] = await Promise.all([
     getMyPermissions({ serverId: server.id, channelId: channel.id }),
     getServerMemberGroups(server.id),
+    resolveMessageTarget(channel.id, m),
   ]);
+  const threadId = target.threadId ?? (t && isUuid(t) ? t : undefined);
   const canManage = hasPermission(permissions, Permission.MANAGE_CHANNELS);
   const manageData = canManage
     ? await Promise.all([
@@ -71,10 +75,13 @@ export default async function ServerChannelPage({
           channel={channel}
           permissions={permissions}
           members={memberGroups.flatMap((group) => group.members)}
-          focusMessageId={focusMessageId}
+          focusMessageId={target.focusId}
+          threadId={threadId}
+          threadFocusId={target.threadFocusId}
         />
       </div>
-      <MemberPanel groups={memberGroups} />
+      {/* Le panneau du fil prend la place de la liste des membres */}
+      {!threadId && <MemberPanel groups={memberGroups} />}
     </>
   );
 }

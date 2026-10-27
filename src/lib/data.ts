@@ -5,6 +5,7 @@ import { createAdminClient, hasAdminKey } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/utils";
 import { MESSAGE_COLUMNS, MESSAGE_PAGE_SIZE, type ChatMessage } from "@/lib/chat";
 import { CARD_COLUMNS, type BoardCard, type BoardColumn, type BoardLabel } from "@/lib/board";
+import type { UnreadRow } from "@/components/unread/unread-provider";
 import {
   COMMENT_COLUMNS,
   isImage,
@@ -145,12 +146,38 @@ export const getProjectTree = cache(async (projectId: string, includeEmpty = fal
   return buildTree((categories ?? []) as Category[], (channels ?? []) as Channel[], includeEmpty);
 });
 
+export async function getMyUnread() {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("my_unread");
+  return (data ?? []) as UnreadRow[];
+}
+
+/**
+ * Lien vers un message (?m=) : si c'est une réponse dans un fil, on cible le message racine
+ * dans le salon et on ouvre le fil sur la réponse.
+ */
+export async function resolveMessageTarget(channelId: string, messageId: string | undefined) {
+  if (!messageId || !isUuid(messageId)) return { focusId: undefined, threadId: undefined, threadFocusId: undefined };
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("messages")
+    .select("id, thread_id")
+    .eq("id", messageId)
+    .eq("channel_id", channelId)
+    .maybeSingle();
+  if (!data) return { focusId: undefined, threadId: undefined, threadFocusId: undefined };
+  return data.thread_id
+    ? { focusId: data.thread_id as string, threadId: data.thread_id as string, threadFocusId: data.id as string }
+    : { focusId: data.id as string, threadId: undefined, threadFocusId: undefined };
+}
+
 export async function getRecentMessages(channelId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("messages")
     .select(MESSAGE_COLUMNS)
     .eq("channel_id", channelId)
+    .is("thread_id", null)
     .order("created_at", { ascending: false })
     .limit(MESSAGE_PAGE_SIZE + 1);
   const rows = (data ?? []) as unknown as ChatMessage[];
@@ -179,6 +206,7 @@ export async function getMessagesAround(channelId: string, messageId: string) {
       .from("messages")
       .select(MESSAGE_COLUMNS)
       .eq("channel_id", channelId)
+      .is("thread_id", null)
       .lte("created_at", target.created_at)
       .order("created_at", { ascending: false })
       .limit(half + 1),
@@ -186,6 +214,7 @@ export async function getMessagesAround(channelId: string, messageId: string) {
       .from("messages")
       .select(MESSAGE_COLUMNS)
       .eq("channel_id", channelId)
+      .is("thread_id", null)
       .gt("created_at", target.created_at)
       .order("created_at", { ascending: true })
       .limit(half + 1),

@@ -8,12 +8,16 @@ export async function ChannelChat({
   permissions,
   members,
   focusMessageId,
+  threadId,
+  threadFocusId,
 }: {
   channel: Channel;
   permissions: number;
   /** Personnes mentionnables dans ce salon */
   members: Member[];
   focusMessageId?: string;
+  threadId?: string;
+  threadFocusId?: string;
 }) {
   const [around, { profile, email }] = await Promise.all([
     focusMessageId ? getMessagesAround(channel.id, focusMessageId) : null,
@@ -29,6 +33,8 @@ export async function ChannelChat({
       initialHasMore={hasMore}
       initialHasNewer={hasNewer}
       focusMessageId={around ? (focusMessageId ?? null) : null}
+      threadId={threadId ?? null}
+      threadFocusId={threadFocusId ?? null}
       permissions={permissions}
       members={members}
       me={{

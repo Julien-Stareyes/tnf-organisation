@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, Bell, BellRing, CheckCheck, Clapperboard, KanbanSquare, Megaphone } from "lucide-react";
+import { AtSign, Bell, BellRing, CheckCheck, Clapperboard, KanbanSquare, Megaphone, MessagesSquare } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { CHANNEL_READ_EVENT } from "@/components/unread/unread-provider";
 import { cn } from "@/lib/utils";
 
 type NotificationRow = {
   id: string;
-  type: "mention" | "everyone" | "card_assigned" | "review_comment";
+  type: "mention" | "everyone" | "card_assigned" | "review_comment" | "thread_reply";
   server_id: string | null;
   project_id: string | null;
   channel_id: string | null;
@@ -45,6 +46,7 @@ function describe(n: NotificationRow) {
   if (n.type === "card_assigned") return { title: `${actor} t'a assigné une carte`, where: n.project?.name ?? "" };
   if (n.type === "review_comment") return { title: `${actor} a commenté un rendu`, where: n.project?.name ?? "" };
   if (n.type === "everyone") return { title: `${actor} a mentionné @everyone`, where };
+  if (n.type === "thread_reply") return { title: `${actor} a répondu dans un fil`, where };
   return { title: `${actor} t'a mentionné`, where };
 }
 
@@ -101,6 +103,19 @@ export function NotificationBell({ meId }: { meId: string }) {
       supabase.removeChannel(channel);
     };
   }, [supabase, meId, fetchOne, router]);
+
+  // Ouvrir un salon marque ses mentions comme lues (voir UnreadProvider)
+  useEffect(() => {
+    const onChannelRead = (event: Event) => {
+      const channelId = (event as CustomEvent<string>).detail;
+      const now = new Date().toISOString();
+      setItems((current) =>
+        current.map((n) => (n.channel_id === channelId && !n.read_at && n.type !== "card_assigned" ? { ...n, read_at: now } : n)),
+      );
+    };
+    window.addEventListener(CHANNEL_READ_EVENT, onChannelRead);
+    return () => window.removeEventListener(CHANNEL_READ_EVENT, onChannelRead);
+  }, []);
 
   // Compteur dans l'onglet du navigateur
   useEffect(() => {
@@ -187,6 +202,8 @@ export function NotificationBell({ meId }: { meId: string }) {
                   ? KanbanSquare
                   : n.type === "review_comment"
                     ? Clapperboard
+                    : n.type === "thread_reply"
+                      ? MessagesSquare
                     : n.type === "everyone"
                       ? Megaphone
                       : AtSign;
