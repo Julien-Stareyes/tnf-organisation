@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { ChannelHeader } from "@/components/channel-header";
+import { Brush } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { WhiteboardLoader } from "@/components/whiteboard/whiteboard-loader";
 import { getMe, getMyProjectRole, getProject, getServer, getWhiteboardElements } from "@/lib/data";
 
@@ -19,9 +20,10 @@ export default async function ProjectWhiteboardPage({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <ChannelHeader
-        crumbs={[{ label: server.name, href: `/s/${server.id}` }, { label: project.name }]}
-        project={{ basePath: `/s/${server.id}/p/${project.id}`, active: "whiteboard" }}
+      <PageHeader
+        icon={<Brush className="size-4 text-faint" />}
+        title="Tableau"
+        subtitle="Tableau blanc partagé : tout le monde dessine en même temps"
       />
       <WhiteboardLoader
         key={project.id}

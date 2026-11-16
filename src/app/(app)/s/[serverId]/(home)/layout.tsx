@@ -1,13 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
-import { CreateProjectDialog } from "@/components/dialogs/project-dialogs";
-import { ServerSettingsDialog } from "@/components/dialogs/server-dialogs";
+import { ServerMenu } from "@/components/menus";
 import { ChannelTree } from "@/components/sidebar/channel-tree";
-import { ProjectLink } from "@/components/sidebar/nav-links";
-import { Sidebar, SidebarSection } from "@/components/sidebar/sidebar";
-import { ServerMembersDialog } from "@/components/dialogs/member-dialogs";
-import { SearchDialog } from "@/components/search/search-dialog";
+import { Sidebar, SidebarHeader } from "@/components/sidebar/sidebar";
 import {
   getMe,
   getMyPermissions,
@@ -18,7 +12,9 @@ import {
   getServerTree,
 } from "@/lib/data";
 import { hasPermission, Permission } from "@/lib/permissions";
+import { isUuid } from "@/lib/utils";
 
+/** Colonne du pôle : ses salons généraux (les projets sont dans la navigation à gauche) */
 export default async function ServerLayout({
   children,
   params,
@@ -27,50 +23,61 @@ export default async function ServerLayout({
   params: Promise<{ serverId: string }>;
 }) {
   const { serverId } = await params;
-  const server = await getServer(serverId);
+  if (!isUuid(serverId)) notFound();
+
+  // Tout part en même temps (la RLS filtre déjà ce qui n'est pas autorisé)
+  const [server, permissions, { orgRole }, { tree: fullTree }, serverMembers, roles, orgMembers] = await Promise.all([
+    getServer(serverId),
+    getMyPermissions({ serverId }),
+    getMe(),
+    getServerTree(serverId, true),
+    getServerMembersWithRoles(serverId),
+    getServerRoles(serverId),
+    getOrgMembers(),
+  ]);
   if (!server) notFound();
 
-  const [permissions, { orgRole }] = await Promise.all([getMyPermissions({ serverId: server.id }), getMe()]);
   const canManageChannels = hasPermission(permissions, Permission.MANAGE_CHANNELS);
   const canManageRoles = hasPermission(permissions, Permission.MANAGE_ROLES);
   const canAddMembers = hasPermission(permissions, Permission.MANAGE_SERVER);
-  const { tree, projects } = await getServerTree(server.id, canManageChannels);
-  const membersData =
-    canManageRoles || canAddMembers
-      ? await Promise.all([getServerMembersWithRoles(server.id), getServerRoles(server.id), getOrgMembers()])
-      : null;
+  // Comme Discord : sans droit de gestion, une catégorie sans salon visible est masquée
+  const tree = canManageChannels
+    ? fullTree
+    : { ...fullTree, categories: fullTree.categories.filter((category) => category.channels.length > 0) };
+  // Les membres ne sont transmis au menu que si l'utilisateur peut les gérer
+  const membersData = canManageRoles || canAddMembers ? ([serverMembers, roles, orgMembers] as const) : null;
   const basePath = `/s/${server.id}`;
 
   return (
     <>
       <Sidebar
         header={
-          <div className="flex items-center gap-2 px-4 py-3">
-            <h1 className="min-w-0 flex-1 truncate font-semibold">{server.name}</h1>
-            <SearchDialog serverId={server.id} serverName={server.name} />
-            {membersData && (
-              <ServerMembersDialog
-                serverId={server.id}
-                members={membersData[0]}
-                roles={membersData[1]}
-                orgMembers={membersData[2]}
-                canManageRoles={canManageRoles}
-                canAddMembers={canAddMembers}
+          <SidebarHeader
+            title={server.name}
+            subtitle="Salons du pôle"
+            menu={
+              <ServerMenu
+                server={server}
+                canDelete={orgRole === "owner" || orgRole === "admin"}
+                canManageServer={canAddMembers}
+                canCreateProject={hasPermission(permissions, Permission.CREATE_PROJECTS)}
+                settingsHref={
+                  canManageRoles || hasPermission(permissions, Permission.VIEW_AUDIT_LOG) ? `${basePath}/settings` : null
+                }
+                members={
+                  membersData
+                    ? {
+                        members: membersData[0],
+                        roles: membersData[1],
+                        orgMembers: membersData[2],
+                        canManageRoles,
+                        canAddMembers,
+                      }
+                    : null
+                }
               />
-            )}
-            {(canManageRoles || hasPermission(permissions, Permission.VIEW_AUDIT_LOG)) && (
-              <Link
-                href={`${basePath}/settings`}
-                title="Rôles et journal d'audit"
-                className="grid size-6 place-items-center rounded text-faint hover:bg-hover hover:text-fg"
-              >
-                <ShieldCheck className="size-4" />
-              </Link>
-            )}
-            {hasPermission(permissions, Permission.MANAGE_SERVER) && (
-              <ServerSettingsDialog server={server} canDelete={orgRole === "owner" || orgRole === "admin"} />
-            )}
-          </div>
+            }
+          />
         }
       >
         <ChannelTree
@@ -78,31 +85,6 @@ export default async function ServerLayout({
           basePath={basePath}
           manage={canManageChannels ? { serverId: server.id, projectId: null } : undefined}
         />
-        <SidebarSection
-          title="Projets"
-          action={
-            hasPermission(permissions, Permission.CREATE_PROJECTS) ? <CreateProjectDialog serverId={server.id} /> : null
-          }
-        >
-          {projects.length > 0 ? (
-            <ul className="space-y-0.5">
-              {projects.map((project) => (
-                <li key={project.id}>
-                  <ProjectLink
-                    id={project.id}
-                    href={`${basePath}/p/${project.id}`}
-                    name={project.name}
-                    client={project.client_name}
-                    color={project.color}
-                    status={project.status}
-                  />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-2 text-sm text-faint">Aucun projet ne t&apos;est affecté ici.</p>
-          )}
-        </SidebarSection>
       </Sidebar>
       <main className="flex min-w-0 flex-1">{children}</main>
     </>

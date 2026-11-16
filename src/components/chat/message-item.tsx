@@ -163,7 +163,7 @@ export function MessageItem({
     <div
       id={`msg-${message.id}`}
       className={cn(
-        "group relative flex gap-4 px-4 py-0.5 hover:bg-black/15",
+        "group relative flex gap-4 px-5 py-0.5 hover:bg-elevated/70",
         !grouped && "mt-4",
         mentionsMe && !isMine && "border-l-2 border-idle bg-idle/[0.06] hover:bg-idle/10",
         focused && "bg-accent/10 ring-1 ring-inset ring-accent/40",

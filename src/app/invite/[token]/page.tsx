@@ -25,7 +25,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     <main className="grid min-h-dvh place-items-center bg-rail px-4">
       <div className="w-full max-w-sm rounded-xl border border-line bg-sidebar p-8 shadow-2xl">
         <div className="mb-8 space-y-3 text-center">
-          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-accent text-sm font-black text-accent-fg">
+          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-brand text-sm font-black text-brand-fg">
             TNF
           </div>
           <h1 className="text-xl font-semibold">Rejoindre Organisation TNF</h1>

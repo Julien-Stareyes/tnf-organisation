@@ -11,7 +11,16 @@ import {
   updateProjectMemberRole,
 } from "@/app/actions/members";
 import { Avatar } from "@/components/avatar";
-import { Dialog, FormActions, FormError, IconButton, Select, useDialogAction } from "@/components/ui/dialog";
+import {
+  Dialog,
+  FormActions,
+  FormError,
+  IconButton,
+  Select,
+  useControllableOpen,
+  useDialogAction,
+  type Controlled,
+} from "@/components/ui/dialog";
 import type { OrgMember, ProjectMember, Role, ServerMember } from "@/lib/types";
 
 function useRunner() {
@@ -78,20 +87,23 @@ export function ProjectMembersDialog({
   projectId,
   members,
   orgMembers,
+  ...controlled
 }: {
   projectId: string;
   members: ProjectMember[];
   orgMembers: OrgMember[];
-}) {
-  const [open, setOpen] = useState(false);
+} & Controlled) {
+  const [open, setOpen] = useControllableOpen(controlled);
   const { pending, error, run } = useRunner();
   const memberIds = new Set(members.map((m) => m.user_id));
 
   return (
     <>
-      <IconButton title="Membres du projet" onClick={() => setOpen(true)}>
-        <Users className="size-4" />
-      </IconButton>
+      {controlled.open === undefined && (
+        <IconButton title="Membres du projet" onClick={() => setOpen(true)}>
+          <Users className="size-4" />
+        </IconButton>
+      )}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -153,6 +165,7 @@ export function ServerMembersDialog({
   orgMembers,
   canManageRoles,
   canAddMembers,
+  ...controlled
 }: {
   serverId: string;
   members: ServerMember[];
@@ -160,16 +173,18 @@ export function ServerMembersDialog({
   orgMembers: OrgMember[];
   canManageRoles: boolean;
   canAddMembers: boolean;
-}) {
-  const [open, setOpen] = useState(false);
+} & Controlled) {
+  const [open, setOpen] = useControllableOpen(controlled);
   const { pending, error, run } = useRunner();
   const memberIds = new Set(members.map((m) => m.user_id));
 
   return (
     <>
-      <IconButton title="Membres et rôles" onClick={() => setOpen(true)}>
-        <Users className="size-4" />
-      </IconButton>
+      {controlled.open === undefined && (
+        <IconButton title="Membres et rôles" onClick={() => setOpen(true)}>
+          <Users className="size-4" />
+        </IconButton>
+      )}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}

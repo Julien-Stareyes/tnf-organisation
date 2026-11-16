@@ -23,9 +23,10 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims vérifie la signature du jeton localement (clés asymétriques) : pas d'appel réseau à chaque page,
+  // contrairement à getUser. Le jeton est rafraîchi automatiquement s'il expire.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const { pathname, search } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((path) => pathname.startsWith(path));

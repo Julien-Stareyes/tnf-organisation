@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { ChannelHeader } from "@/components/channel-header";
+import { ShieldCheck } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { getAuditLog, getMyPermissions, getRoleDetails, getServer } from "@/lib/data";
 import { hasPermission, Permission } from "@/lib/permissions";
 import type { AuditEntry } from "@/lib/types";
@@ -24,7 +25,7 @@ export default async function ServerSettingsPage({ params }: { params: Promise<{
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <ChannelHeader crumbs={[{ label: server.name, href: `/s/${server.id}` }, { label: "Réglages" }]} />
+      <PageHeader icon={<ShieldCheck className="size-4 text-faint" />} title="Rôles et journal d'audit" subtitle={server.name} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-12 px-6 py-10">
           {canManageRoles && (

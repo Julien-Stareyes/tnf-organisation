@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, Lock, Minus, X } from "lucide-react";
 import { setChannelOverwrite, setClientVisible } from "@/app/actions/permissions";
-import { Dialog, IconButton, Select } from "@/components/ui/dialog";
+import { Dialog, IconButton, Select, useControllableOpen, type Controlled } from "@/components/ui/dialog";
 import { CHANNEL_PERMISSIONS, Permission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { Channel, ChannelOverwrite, Member, RoleDetail } from "@/lib/types";
@@ -59,13 +59,14 @@ export function ChannelPermissionsDialog({
   overwrites,
   roles,
   members,
+  ...controlled
 }: {
   channel: Channel;
   overwrites: ChannelOverwrite[];
   roles: RoleDetail[];
   members: Member[];
-}) {
-  const [open, setOpen] = useState(false);
+} & Controlled) {
+  const [open, setOpen] = useControllableOpen(controlled);
   const [rows, setRows] = useState<Row[]>(overwrites);
   const [extraTargets, setExtraTargets] = useState<Target[]>([]);
   const [clientVisible, setClientVisibleState] = useState(channel.client_visible);
@@ -147,9 +148,11 @@ export function ChannelPermissionsDialog({
 
   return (
     <>
-      <IconButton title="Permissions du salon" onClick={() => setOpen(true)} className="size-8">
-        <Lock className="size-4" />
-      </IconButton>
+      {controlled.open === undefined && (
+        <IconButton title="Permissions du salon" onClick={() => setOpen(true)} className="size-8">
+          <Lock className="size-4" />
+        </IconButton>
+      )}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}

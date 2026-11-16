@@ -2,7 +2,17 @@
 
 import { Plus, Settings } from "lucide-react";
 import { createProject, updateProject } from "@/app/actions/structure";
-import { Dialog, Field, FormActions, FormError, IconButton, Select, TextInput, useDialogAction } from "@/components/ui/dialog";
+import {
+  Dialog,
+  Field,
+  FormActions,
+  FormError,
+  IconButton,
+  Select,
+  TextInput,
+  useDialogAction,
+  type Controlled,
+} from "@/components/ui/dialog";
 import type { Project } from "@/lib/types";
 
 const DEFAULT_COLORS = ["#00B8FC", "#FF5FA2", "#B08D57", "#D4FF3A", "#9B7BFF", "#FF7A3D"];
@@ -20,19 +30,21 @@ function ColorField({ defaultValue }: { defaultValue?: string | null }) {
   );
 }
 
-export function CreateProjectDialog({ serverId }: { serverId: string }) {
-  const { open, setOpen, state, formAction } = useDialogAction(createProject);
+export function CreateProjectDialog({ serverId, ...controlled }: { serverId: string } & Controlled) {
+  const { open, setOpen, state, formAction } = useDialogAction(createProject, controlled);
 
   return (
     <>
-      <IconButton title="Créer un projet" onClick={() => setOpen(true)}>
-        <Plus className="size-4" />
-      </IconButton>
+      {controlled.open === undefined && (
+        <IconButton title="Créer un projet" onClick={() => setOpen(true)}>
+          <Plus className="size-4" />
+        </IconButton>
+      )}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
         title="Créer un projet"
-        description="Tu en deviens lead. Les salons sont créés selon le pôle du serveur."
+        description="Tu en deviens lead. Les salons sont créés selon le pôle."
       >
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="server_id" value={serverId} />
@@ -51,14 +63,16 @@ export function CreateProjectDialog({ serverId }: { serverId: string }) {
   );
 }
 
-export function ProjectSettingsDialog({ project }: { project: Project }) {
-  const { open, setOpen, state, formAction } = useDialogAction(updateProject);
+export function ProjectSettingsDialog({ project, ...controlled }: { project: Project } & Controlled) {
+  const { open, setOpen, state, formAction } = useDialogAction(updateProject, controlled);
 
   return (
     <>
-      <IconButton title="Paramètres du projet" onClick={() => setOpen(true)}>
-        <Settings className="size-4" />
-      </IconButton>
+      {controlled.open === undefined && (
+        <IconButton title="Paramètres du projet" onClick={() => setOpen(true)}>
+          <Settings className="size-4" />
+        </IconButton>
+      )}
       <Dialog open={open} onClose={() => setOpen(false)} title="Paramètres du projet">
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="id" value={project.id} />

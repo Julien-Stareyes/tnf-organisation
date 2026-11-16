@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Film, ImageIcon, MessageSquare } from "lucide-react";
-import { ChannelHeader } from "@/components/channel-header";
+import { Clapperboard, Film, ImageIcon, MessageSquare } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { UploadReviewDialog } from "@/components/reviews/upload-dialog";
 import { getMe, getMyProjectRole, getProject, getReviewAssets, getServer } from "@/lib/data";
@@ -27,9 +27,10 @@ export default async function ProjectReviewsPage({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <ChannelHeader
-        crumbs={[{ label: server.name, href: `/s/${server.id}` }, { label: project.name }]}
-        project={{ basePath: `/s/${server.id}/p/${project.id}`, active: "reviews", isClient }}
+      <PageHeader
+        icon={<Clapperboard className="size-4 text-faint" />}
+        title="Revues"
+        subtitle="Rendus à commenter image par image"
         actions={
           !isClient && <UploadReviewDialog projectId={project.id} meId={profile?.id ?? ""} basePath={basePath} trigger="primary" />
         }

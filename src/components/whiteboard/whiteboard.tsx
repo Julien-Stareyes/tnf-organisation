@@ -8,6 +8,7 @@ import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/ty
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { useTheme } from "@/components/theme-toggle";
 
 // Collaboration : les éléments modifiés partent en "broadcast" Supabase et sont fusionnés chez les autres
 // avec reconcileElements (même algorithme qu'excalidraw.com). La scène est sauvegardée en base toutes les 2 s.
@@ -38,6 +39,7 @@ export default function Whiteboard({
   me: Me;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const theme = useTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -51,7 +53,8 @@ export default function Whiteboard({
   const initialData = useMemo(() => {
     const elements = restoreElements(initialElements as never, null);
     elements.forEach((element) => sentVersions.current.set(element.id, element.version));
-    return { elements, appState: { viewBackgroundColor: "#17171b" }, scrollToContent: true };
+    // Fond transparent : la couleur suit le thème de l'application
+    return { elements, appState: { viewBackgroundColor: "transparent" }, scrollToContent: true };
   }, [initialElements]);
 
   // ─── Images ───────────────────────────────────────────────────────────────
@@ -230,7 +233,7 @@ export default function Whiteboard({
         onChange={onChange}
         onPointerUpdate={onPointerUpdate}
         isCollaborating
-        theme="dark"
+        theme={theme}
         langCode="fr-FR"
         UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false } }}
       />

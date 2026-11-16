@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
-import { ChannelHeader } from "@/components/channel-header";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { ReviewViewer } from "@/components/reviews/review-viewer";
 import {
   getMe,
@@ -47,13 +49,18 @@ export default async function ReviewAssetPage({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <ChannelHeader
-        crumbs={[
-          { label: server.name, href: `/s/${server.id}` },
-          { label: project.name, href: `/s/${server.id}/p/${project.id}/reviews` },
-          { label: review.asset.title },
-        ]}
-        project={{ basePath: `/s/${server.id}/p/${project.id}`, active: "reviews", isClient }}
+      <PageHeader
+        icon={
+          <Link
+            href={`/s/${server.id}/p/${project.id}/reviews`}
+            title="Retour aux revues"
+            className="grid size-7 place-items-center rounded-md text-muted hover:bg-hover hover:text-fg"
+          >
+            <ArrowLeft className="size-4" />
+          </Link>
+        }
+        title={review.asset.title}
+        subtitle={`Version ${version.version} sur ${review.versions.length}`}
       />
       <ReviewViewer
         key={version.id}

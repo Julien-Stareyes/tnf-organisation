@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { MENTION_RE, readableMentions } from "@/lib/chat";
 
-// Recherche plein texte (français) ; la RLS ne renvoie que ce que l'utilisateur a le droit de voir.
+// Recherche plein texte (français) dans tous les pôles ; la RLS ne renvoie que ce que l'utilisateur peut voir.
 
 export type MessageHit = {
   id: string;
@@ -12,6 +12,8 @@ export type MessageHit = {
   created_at: string;
   author: string;
   avatar_url: string | null;
+  server_id: string;
+  server_name: string;
   channel_id: string;
   channel_name: string;
   project_id: string | null;
@@ -21,6 +23,7 @@ export type MessageHit = {
 export type CardHit = {
   id: string;
   title: string;
+  server_id: string;
   project_id: string;
   project_name: string;
 };
@@ -49,29 +52,28 @@ function buildTsQuery(query: string) {
     .join(" & ");
 }
 
-export async function searchServer(serverId: string, rawQuery: string): Promise<SearchResults> {
-  const parsed = z
-    .object({ serverId: z.uuid(), query: z.string().trim().min(2).max(100) })
-    .safeParse({ serverId, query: rawQuery });
+export async function searchEverywhere(rawQuery: string): Promise<SearchResults> {
+  const parsed = z.string().trim().min(2).max(100).safeParse(rawQuery);
   if (!parsed.success) return EMPTY;
-  const query = buildTsQuery(parsed.data.query);
+  const query = buildTsQuery(parsed.data);
   if (!query) return EMPTY;
 
   const supabase = await createClient();
-  const [{ data: messageData }, { data: projectData }] = await Promise.all([
+  const [{ data: messageData }, { data: projectData }, { data: serverData }] = await Promise.all([
     supabase
       .from("messages")
       .select(
         "id, content, created_at, channel_id, author:profiles!messages_author_id_fkey(display_name, avatar_url), channel:channels!messages_channel_id_fkey!inner(name, server_id, project_id)",
       )
-      .eq("channel.server_id", serverId)
       .textSearch("search", query, { config: "french" })
       .order("created_at", { ascending: false })
       .limit(25),
-    supabase.from("projects").select("id, name").eq("server_id", serverId),
+    supabase.from("projects").select("id, name, server_id"),
+    supabase.from("servers").select("id, name"),
   ]);
 
-  const projects = new Map((projectData ?? []).map((p) => [p.id as string, p.name as string]));
+  const projects = new Map((projectData ?? []).map((p) => [p.id as string, { name: p.name as string, serverId: p.server_id as string }]));
+  const servers = new Map((serverData ?? []).map((s) => [s.id as string, s.name as string]));
   const messages = (messageData ?? []) as unknown as MessageRow[];
 
   // Noms des personnes mentionnées, pour des extraits lisibles
@@ -97,16 +99,18 @@ export async function searchServer(serverId: string, rawQuery: string): Promise<
       created_at: m.created_at,
       author: m.author?.display_name ?? "Inconnu",
       avatar_url: m.author?.avatar_url ?? null,
+      server_id: m.channel?.server_id ?? "",
+      server_name: servers.get(m.channel?.server_id ?? "") ?? "",
       channel_id: m.channel_id,
       channel_name: m.channel?.name ?? "",
       project_id: m.channel?.project_id ?? null,
-      project_name: m.channel?.project_id ? (projects.get(m.channel.project_id) ?? null) : null,
+      project_name: m.channel?.project_id ? (projects.get(m.channel.project_id)?.name ?? null) : null,
     })),
-    cards: (cardData ?? []).map((c) => ({
-      id: c.id as string,
-      title: c.title as string,
-      project_id: c.project_id as string,
-      project_name: projects.get(c.project_id as string) ?? "",
-    })),
+    cards: (cardData ?? []).flatMap((c) => {
+      const project = projects.get(c.project_id as string);
+      return project
+        ? [{ id: c.id as string, title: c.title as string, server_id: project.serverId, project_id: c.project_id as string, project_name: project.name }]
+        : [];
+    }),
   };
 }

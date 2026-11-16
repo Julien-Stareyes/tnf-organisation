@@ -13,6 +13,7 @@ import {
   TextArea,
   TextInput,
   useDialogAction,
+  type Controlled,
 } from "@/components/ui/dialog";
 import type { Category, Channel } from "@/lib/types";
 
@@ -134,12 +135,13 @@ export function ChannelSettingsDialog({
   channel,
   categories,
   afterDeleteHref,
+  ...controlled
 }: {
   channel: Channel;
   categories: Category[];
   afterDeleteHref: string;
-}) {
-  const { open, setOpen, state, formAction } = useDialogAction(updateChannel);
+} & Controlled) {
+  const { open, setOpen, state, formAction } = useDialogAction(updateChannel, controlled);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
 
@@ -153,9 +155,11 @@ export function ChannelSettingsDialog({
 
   return (
     <>
-      <IconButton title="Paramètres du salon" onClick={() => setOpen(true)} className="size-8">
-        <Settings className="size-4" />
-      </IconButton>
+      {controlled.open === undefined && (
+        <IconButton title="Paramètres du salon" onClick={() => setOpen(true)} className="size-8">
+          <Settings className="size-4" />
+        </IconButton>
+      )}
       <Dialog open={open} onClose={() => setOpen(false)} title={`Paramètres de #${channel.name}`}>
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="id" value={channel.id} />

@@ -2,20 +2,19 @@
 
 Espace de travail des équipes **The New Face**, inspiré de Discord :
 organisation → serveurs → salons du serveur + projets (Logitech, Pussi…) → salons du projet.
-Chaque projet a son Miro et son Trello. On ne voit que les projets auxquels on est affecté.
+Chaque projet a son chat, son kanban (Tâches), son tableau blanc (Tableau) et sa revue des rendus (Revues).
+On ne voit que les projets auxquels on est affecté.
 
-Stack : Next.js 15 (App Router) · TypeScript · Tailwind 4 · Supabase (Postgres, Auth, RLS, Realtime).
+Stack : Next.js 15 (App Router) · TypeScript · Tailwind 4 · Supabase (Postgres, Auth, RLS, Realtime, Storage).
 
 ## Installation
 
 1. **Variables d'environnement** : copier `.env.example` en `.env.local` et remplir l'URL et la clé
    publishable du projet Supabase (Project Settings → API).
 
-2. **Base de données** : appliquer les migrations dans l'ordre, soit via la CLI
-   (`npx supabase link` puis `npx supabase db push`), soit en collant chaque fichier dans le SQL Editor :
-   - `supabase/migrations/20261027000001_schema.sql` (tables)
-   - `supabase/migrations/20261027000002_permissions.sql` (calcul des permissions, triggers)
-   - `supabase/migrations/20261027000003_rls.sql` (règles d'accès)
+2. **Base de données** : appliquer les migrations de `supabase/migrations/` dans l'ordre des noms
+   (001 → 011), soit via la CLI (`npx supabase link` puis `npx supabase db push`),
+   soit en collant chaque fichier dans le SQL Editor.
 
 3. **Auth Supabase** (Authentication → Sign In / Providers) :
    - désactiver « Allow new users to sign up » (accès sur invitation uniquement) ;
@@ -29,6 +28,30 @@ Stack : Next.js 15 (App Router) · TypeScript · Tailwind 4 · Supabase (Postgre
 
 6. `npm install` puis `npm run dev` → http://localhost:3000
 
+## Mise en ligne (Vercel)
+
+1. Sur https://vercel.com/new, importer le dépôt GitHub `tnf-organisation` (framework détecté : Next.js).
+2. Dans **Environment Variables**, ajouter (Production + Preview) :
+
+   | Variable | Valeur |
+   |---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | clé publishable (`sb_publishable_…`) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | clé secrète (`sb_secret_…`) — jamais ailleurs que côté serveur |
+   | `NEXT_PUBLIC_SITE_URL` | URL publique du site, ex. `https://organisation.thenewface.io` |
+   | `RESEND_API_KEY`, `RESEND_FROM` | facultatif : envoi automatique des invitations |
+
+3. **Deploy**. Ensuite chaque `git push` sur `main` redéploie automatiquement.
+4. **Supabase → Authentication → URL Configuration** :
+   - *Site URL* : l'URL publique du site ;
+   - *Redirect URLs* : ajouter `https://<url-publique>/auth/callback` (garder celle de localhost pour le dev).
+5. **Domaine** (facultatif) : Vercel → Settings → Domains → ajouter `organisation.thenewface.io`,
+   puis créer chez le registrar du domaine l'enregistrement DNS indiqué par Vercel (CNAME).
+   Mettre à jour `NEXT_PUBLIC_SITE_URL` et les URLs Supabase avec ce domaine, puis redéployer.
+6. **E-mails Supabase** (lien magique) : le serveur d'envoi intégré de Supabase est très limité.
+   Pour un usage en équipe, configurer un SMTP (ex. Resend) dans Authentication → Emails → SMTP Settings.
+   Les invitations par lien copié et la connexion par mot de passe fonctionnent sans cela.
+
 ## Architecture
 
 ```
@@ -39,6 +62,7 @@ src/app/(auth)/        connexion (mot de passe, lien magique)
 src/app/(app)/s/[serverId]/(home)/            salons du serveur
 src/app/(app)/s/[serverId]/p/[projectId]/board        kanban (Tâches)
 src/app/(app)/s/[serverId]/p/[projectId]/whiteboard   tableau blanc Excalidraw
+src/app/(app)/s/[serverId]/p/[projectId]/reviews      revue des rendus
 src/app/(app)/s/[serverId]/p/[projectId]/     projet : salons, Miro, Trello
 ```
 

@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KanbanSquare, Loader2, Search } from "lucide-react";
-import { searchServer, type SearchResults } from "@/app/actions/search";
+import { searchEverywhere, type SearchResults } from "@/app/actions/search";
 import { Avatar } from "@/components/avatar";
-import { Dialog, IconButton } from "@/components/ui/dialog";
+import { navItemClass } from "@/components/nav/app-nav";
+import { Dialog } from "@/components/ui/dialog";
 import { formatTimestamp } from "@/lib/chat";
+import { cn } from "@/lib/utils";
 
-export function SearchDialog({ serverId, serverName }: { serverId: string; serverName: string }) {
+/** Recherche dans tous les pôles accessibles (ligne de la navigation, ou Ctrl+K) */
+export function SearchDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -37,12 +40,12 @@ export function SearchDialog({ serverId, serverName }: { serverId: string; serve
     const id = ++requestId.current;
     const timer = window.setTimeout(() => {
       startTransition(async () => {
-        const found = await searchServer(serverId, query);
+        const found = await searchEverywhere(query);
         if (id === requestId.current) setResults(found);
       });
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [query, serverId]);
+  }, [query]);
 
   function go(href: string) {
     setOpen(false);
@@ -53,12 +56,14 @@ export function SearchDialog({ serverId, serverName }: { serverId: string; serve
 
   return (
     <>
-      <IconButton title="Rechercher (Ctrl+K)" onClick={() => setOpen(true)}>
+      <button type="button" onClick={() => setOpen(true)} className={cn(navItemClass, "text-muted hover:bg-hover hover:text-fg")}>
         <Search className="size-4" />
-      </IconButton>
-      <Dialog open={open} onClose={() => setOpen(false)} title={`Rechercher dans ${serverName}`}>
+        Rechercher
+        <kbd className="ml-auto rounded border border-line bg-main px-1.5 font-sans text-[10px] text-faint">Ctrl K</kbd>
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Rechercher">
         <div className="space-y-4">
-          <div className="flex items-center gap-2 rounded-md border border-line bg-rail px-3 focus-within:border-accent">
+          <div className="flex items-center gap-2 rounded-md border border-line bg-elevated px-3 focus-within:border-accent">
             <Search className="size-4 text-faint" />
             <input
               autoFocus
@@ -75,13 +80,13 @@ export function SearchDialog({ serverId, serverName }: { serverId: string; serve
 
             {results && results.cards.length > 0 && (
               <section>
-                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-faint">Cartes</h3>
+                <h3 className="mb-1 text-xs font-medium text-faint">Tâches</h3>
                 <ul>
                   {results.cards.map((card) => (
                     <li key={card.id}>
                       <button
                         type="button"
-                        onClick={() => go(`/s/${serverId}/p/${card.project_id}/board?card=${card.id}`)}
+                        onClick={() => go(`/s/${card.server_id}/p/${card.project_id}/board?card=${card.id}`)}
                         className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-hover"
                       >
                         <KanbanSquare className="size-4 shrink-0 text-accent" />
@@ -96,10 +101,10 @@ export function SearchDialog({ serverId, serverName }: { serverId: string; serve
 
             {results && results.messages.length > 0 && (
               <section>
-                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-faint">Messages</h3>
+                <h3 className="mb-1 text-xs font-medium text-faint">Messages</h3>
                 <ul>
                   {results.messages.map((hit) => {
-                    const base = hit.project_id ? `/s/${serverId}/p/${hit.project_id}` : `/s/${serverId}`;
+                    const base = hit.project_id ? `/s/${hit.server_id}/p/${hit.project_id}` : `/s/${hit.server_id}`;
                     return (
                       <li key={hit.id}>
                         <button
@@ -112,7 +117,7 @@ export function SearchDialog({ serverId, serverName }: { serverId: string; serve
                             <span className="flex items-baseline gap-2 text-xs">
                               <span className="font-semibold text-fg">{hit.author}</span>
                               <span className="truncate text-faint">
-                                {hit.project_name ? `${hit.project_name} › ` : ""}#{hit.channel_name}
+                                {hit.project_name ?? hit.server_name} › #{hit.channel_name}
                               </span>
                               <span suppressHydrationWarning className="ml-auto shrink-0 text-faint">
                                 {formatTimestamp(hit.created_at)}

@@ -3,7 +3,17 @@
 import { useState, useTransition } from "react";
 import { Plus, Settings } from "lucide-react";
 import { createServer, deleteServer, updateServer } from "@/app/actions/structure";
-import { Dialog, Field, FormActions, FormError, IconButton, Select, TextInput, useDialogAction } from "@/components/ui/dialog";
+import {
+  Dialog,
+  Field,
+  FormActions,
+  FormError,
+  IconButton,
+  Select,
+  TextInput,
+  useDialogAction,
+  type Controlled,
+} from "@/components/ui/dialog";
 import type { ServerPole, ServerSummary } from "@/lib/types";
 
 const POLES: { value: ServerPole; label: string }[] = [
@@ -32,22 +42,17 @@ export function CreateServerDialog() {
 
   return (
     <>
-      <button
-        type="button"
-        title="Créer un serveur"
-        onClick={() => setOpen(true)}
-        className="grid size-12 place-items-center rounded-3xl bg-elevated text-online transition-all hover:rounded-2xl hover:bg-online hover:text-rail"
-      >
-        <Plus className="size-6" />
-      </button>
+      <IconButton title="Créer un pôle" onClick={() => setOpen(true)}>
+        <Plus className="size-4" />
+      </IconButton>
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title="Créer un serveur"
-        description="Un serveur regroupe un pôle ou une équipe, avec ses salons et ses projets."
+        title="Créer un pôle"
+        description="Un pôle regroupe une équipe, avec ses salons généraux et ses projets."
       >
         <form action={formAction} className="space-y-4">
-          <Field label="Nom du serveur">
+          <Field label="Nom du pôle">
             <TextInput name="name" required maxLength={100} placeholder="Ex. CGI / VFX" autoFocus />
           </Field>
           <PoleSelect />
@@ -59,8 +64,12 @@ export function CreateServerDialog() {
   );
 }
 
-export function ServerSettingsDialog({ server, canDelete }: { server: ServerSummary; canDelete: boolean }) {
-  const { open, setOpen, state, formAction } = useDialogAction(updateServer);
+export function ServerSettingsDialog({
+  server,
+  canDelete,
+  ...controlled
+}: { server: ServerSummary; canDelete: boolean } & Controlled) {
+  const { open, setOpen, state, formAction } = useDialogAction(updateServer, controlled);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
 
@@ -74,13 +83,15 @@ export function ServerSettingsDialog({ server, canDelete }: { server: ServerSumm
 
   return (
     <>
-      <IconButton title="Paramètres du serveur" onClick={() => setOpen(true)}>
-        <Settings className="size-4" />
-      </IconButton>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Paramètres du serveur">
+      {controlled.open === undefined && (
+        <IconButton title="Paramètres du pôle" onClick={() => setOpen(true)}>
+          <Settings className="size-4" />
+        </IconButton>
+      )}
+      <Dialog open={open} onClose={() => setOpen(false)} title="Paramètres du pôle">
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="id" value={server.id} />
-          <Field label="Nom du serveur">
+          <Field label="Nom du pôle">
             <TextInput name="name" required maxLength={100} defaultValue={server.name} />
           </Field>
           <PoleSelect defaultValue={server.pole} />
@@ -96,7 +107,7 @@ export function ServerSettingsDialog({ server, canDelete }: { server: ServerSumm
               disabled={deleting}
               className="text-sm font-medium text-danger hover:underline disabled:opacity-60"
             >
-              Supprimer le serveur
+              Supprimer le pôle
             </button>
           </div>
         )}

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { KanbanBoard } from "@/components/board/kanban-board";
-import { ChannelHeader } from "@/components/channel-header";
+import { KanbanSquare } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import {
   getBoard,
   getMe,
@@ -36,10 +37,7 @@ export default async function ProjectBoardPage({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <ChannelHeader
-        crumbs={[{ label: server.name, href: `/s/${server.id}` }, { label: project.name }]}
-        project={{ basePath: `/s/${server.id}/p/${project.id}`, active: "board" }}
-      />
+      <PageHeader icon={<KanbanSquare className="size-4 text-faint" />} title="Tâches" subtitle="Glisse les cartes d'une colonne à l'autre" />
       <KanbanBoard
         key={openCardId ?? "board"}
         initialOpenCardId={openCardId}

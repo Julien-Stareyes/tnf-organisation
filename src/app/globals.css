@@ -1,18 +1,48 @@
 @import "tailwindcss";
 
-/* Thème sombre provisoire — à remplacer par la charte TNF */
-:root {
-  --rail: #08080a;
-  --sidebar: #111114;
-  --main: #17171b;
-  --elevated: #1e1e23;
-  --hover: #26262d;
-  --line: #2a2a32;
+/*
+ * Deux thèmes : clair (par défaut) et sombre, choisis par l'attribut data-theme sur <html>.
+ * Les composants n'utilisent que ces jetons : changer de thème ne touche à aucun composant.
+ *  - rail : colonne de navigation · sidebar : colonne du projet · main : zone de contenu
+ *  - accent : actions principales et liens · brand : vert TNF (logo, repères)
+ */
+:root,
+[data-theme="light"] {
+  --rail: #f5f5f4;
+  --sidebar: #fafaf9;
+  --main: #ffffff;
+  --elevated: #f4f4f3;
+  --hover: #ebebea;
+  --line: #e5e5e3;
+  --fg: #1c1c1a;
+  --muted: #5c5c57;
+  --faint: #8f8f88;
+  --accent: #3f6b0a;
+  --accent-fg: #ffffff;
+  --brand: #d4ff3a;
+  --brand-fg: #1c1c1a;
+  --link: #1d64c8;
+  --danger: #d92d2d;
+  --online: #1f9d55;
+  --idle: #c27c0e;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --rail: #0d0d10;
+  --sidebar: #131317;
+  --main: #18181c;
+  --elevated: #202026;
+  --hover: #2a2a31;
+  --line: #2c2c34;
   --fg: #ececf1;
-  --muted: #a1a1ad;
-  --faint: #6c6c78;
+  --muted: #a6a6b1;
+  --faint: #70707c;
   --accent: #d4ff3a;
   --accent-fg: #0b0b0d;
+  --brand: #d4ff3a;
+  --brand-fg: #0b0b0d;
+  --link: #6cb6ff;
   --danger: #ff5c5c;
   --online: #3ddc84;
   --idle: #f5b83d;
@@ -31,6 +61,9 @@
   --color-faint: var(--faint);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-link: var(--link);
   --color-danger: var(--danger);
   --color-online: var(--online);
   --color-idle: var(--idle);

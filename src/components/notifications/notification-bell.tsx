@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { AtSign, Bell, BellRing, CheckCheck, Clapperboard, KanbanSquare, Megaphone, MessagesSquare } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/client";
-import { CHANNEL_READ_EVENT } from "@/components/unread/unread-provider";
+import { CHANNEL_READ_EVENT, MentionBadge } from "@/components/unread/unread-provider";
+import { navItemClass } from "@/components/nav/app-nav";
 import { cn } from "@/lib/utils";
 
 type NotificationRow = {
@@ -150,23 +151,19 @@ export function NotificationBell({ meId }: { meId: string }) {
     <div ref={panelRef} className="relative">
       <button
         type="button"
-        title="Notifications"
         onClick={() => setOpen(!open)}
         className={cn(
-          "relative grid size-12 place-items-center transition-all",
-          open ? "rounded-2xl bg-accent text-accent-fg" : "rounded-3xl bg-elevated text-muted hover:rounded-2xl hover:bg-hover hover:text-fg",
+          navItemClass,
+          open ? "bg-main font-medium text-fg shadow-sm" : unread ? "font-medium text-fg hover:bg-hover" : "text-muted hover:bg-hover hover:text-fg",
         )}
       >
-        <Bell className="size-5" />
-        {unread > 0 && (
-          <span className="absolute -bottom-0.5 -right-0.5 grid min-w-5 place-items-center rounded-full border-[3px] border-rail bg-danger px-1 text-[10px] font-bold text-white">
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
+        <Bell className="size-4" />
+        Notifications
+        <MentionBadge count={unread} className="ml-auto" />
       </button>
 
       {open && (
-        <div className="fixed left-[80px] top-3 z-50 flex max-h-[80vh] w-96 flex-col overflow-hidden rounded-xl border border-line bg-sidebar shadow-2xl">
+        <div className="fixed left-[248px] top-3 z-50 flex max-h-[80vh] w-96 flex-col overflow-hidden rounded-xl border border-line bg-main shadow-2xl">
           <header className="flex items-center justify-between border-b border-line px-4 py-3">
             <h2 className="font-semibold">Notifications</h2>
             <div className="flex items-center gap-1">

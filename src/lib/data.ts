@@ -41,10 +41,12 @@ import type {
 // Toutes les lectures passent par le client "utilisateur" : la RLS filtre ce qui n'est pas autorisé.
 // Un élément invisible renvoie null → la page affiche un 404, même si on tape l'URL à la main.
 
+/** Utilisateur connecté, d'après le jeton vérifié localement (pas d'appel réseau, voir middleware) */
 export const getSessionUser = cache(async () => {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  return data.user;
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  return claims?.sub ? { id: claims.sub, email: (claims.email as string | undefined) ?? "" } : null;
 });
 
 export async function requireUser() {
@@ -336,7 +338,7 @@ export async function getPendingInvitations(): Promise<PendingInvitation[]> {
   return (data ?? []) as PendingInvitation[];
 }
 
-export async function getServersWithProjects(): Promise<ServerWithProjects[]> {
+export const getServersWithProjects = cache(async (): Promise<ServerWithProjects[]> => {
   const supabase = await createClient();
   const [servers, { data: projects }] = await Promise.all([
     getMyServers(),
@@ -346,6 +348,61 @@ export async function getServersWithProjects(): Promise<ServerWithProjects[]> {
     ...server,
     projects: ((projects ?? []) as Project[]).filter((p) => p.server_id === server.id),
   }));
+});
+
+/** Page d'accueil : mes tâches en cours, rendus à valider, mentions non lues */
+export async function getHomeData(meId: string) {
+  const supabase = await createClient();
+  const [{ data: cards }, { data: reviews }, { data: mentions }] = await Promise.all([
+    supabase
+      .from("board_cards")
+      .select("id, title, due_date, project_id, column_id")
+      .contains("assignee_ids", [meId])
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(30),
+    supabase
+      .from("review_assets")
+      .select("id, title, project_id, updated_at")
+      .eq("status", "in_review")
+      .order("updated_at", { ascending: false })
+      .limit(6),
+    supabase
+      .from("notifications")
+      .select(
+        "id, type, server_id, project_id, channel_id, message_id, excerpt, created_at, actor:profiles!notifications_actor_id_fkey(display_name, avatar_url)",
+      )
+      .is("read_at", null)
+      .in("type", ["mention", "everyone", "thread_reply"])
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  // Une carte dans la dernière colonne (« Livré ») n'est plus à faire
+  const projectIds = [...new Set((cards ?? []).map((c) => c.project_id as string))];
+  const { data: columns } = projectIds.length
+    ? await supabase.from("board_columns").select("id, project_id, position").in("project_id", projectIds)
+    : { data: [] };
+  const doneColumns = new Set(
+    projectIds.map((pid) => (columns ?? []).filter((c) => c.project_id === pid).sort((a, b) => b.position - a.position)[0]?.id),
+  );
+
+  return {
+    tasks: (cards ?? [])
+      .filter((c) => !doneColumns.has(c.column_id))
+      .slice(0, 8) as { id: string; title: string; due_date: string | null; project_id: string }[],
+    reviews: (reviews ?? []) as { id: string; title: string; project_id: string; updated_at: string }[],
+    mentions: (mentions ?? []) as unknown as {
+      id: string;
+      type: string;
+      server_id: string | null;
+      project_id: string | null;
+      channel_id: string | null;
+      message_id: string | null;
+      excerpt: string;
+      created_at: string;
+      actor: { display_name: string; avatar_url: string | null } | null;
+    }[],
+  };
 }
 
 export async function getProjectMembers(projectId: string): Promise<ProjectMember[]> {
@@ -443,6 +500,26 @@ export const getMyProjectRole = cache(async (projectId: string) => {
     .maybeSingle();
   return (data?.project_role ?? null) as ProjectRole | null;
 });
+
+/** Compteurs affichés dans la colonne du projet : tâches en cours, rendus à valider */
+export async function getProjectCounts(projectId: string) {
+  const supabase = await createClient();
+  const [{ data: columns }, { data: cards }, { count: toReview }] = await Promise.all([
+    supabase.from("board_columns").select("id, position").eq("project_id", projectId).order("position"),
+    supabase.from("board_cards").select("column_id").eq("project_id", projectId),
+    supabase
+      .from("review_assets")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .eq("status", "in_review"),
+  ]);
+  // La dernière colonne (« Livré ») ne compte pas comme tâche en cours
+  const doneColumn = columns?.at(-1)?.id;
+  return {
+    openTasks: (cards ?? []).filter((c) => c.column_id !== doneColumn).length,
+    toReview: toReview ?? 0,
+  };
+}
 
 export async function getBoard(projectId: string) {
   const supabase = await createClient();

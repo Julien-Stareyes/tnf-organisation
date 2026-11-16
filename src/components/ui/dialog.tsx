@@ -54,10 +54,22 @@ export function Dialog({
   );
 }
 
+/** Fenêtre pilotée de l'extérieur (menu « ⋯ ») : open + onOpenChange ; sinon elle gère son propre état */
+export type Controlled = { open?: boolean; onOpenChange?: (open: boolean) => void };
+
+export function useControllableOpen({ open, onOpenChange }: Controlled) {
+  const [inner, setInner] = useState(false);
+  const controlled = open !== undefined;
+  return [controlled ? open : inner, controlled ? (onOpenChange ?? (() => {})) : setInner, controlled] as const;
+}
+
 /** Ouvre/ferme une fenêtre et la referme (avec navigation éventuelle) quand l'action réussit. */
-export function useDialogAction(action: (state: FormState, formData: FormData) => Promise<FormState>) {
+export function useDialogAction(
+  action: (state: FormState, formData: FormData) => Promise<FormState>,
+  controlled: Controlled = {},
+) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useControllableOpen(controlled);
   const [state, formAction] = useActionState(action, {});
   const handled = useRef<number | undefined>(undefined);
 
@@ -66,7 +78,7 @@ export function useDialogAction(action: (state: FormState, formData: FormData) =
     handled.current = state.done;
     setOpen(false);
     if (state.href) router.push(state.href);
-  }, [state, router]);
+  }, [state, router, setOpen]);
 
   return { open, setOpen, state, formAction };
 }
